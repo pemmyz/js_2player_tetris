@@ -1,0 +1,92 @@
+body {
+    font-family: sans-serif;
+    background-color: #222;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #0f0; /* Greenish title */
+}
+
+.game-container {
+    display: flex;
+    justify-content: center;
+    gap: 30px; /* Space between player areas and info */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+.player-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.controls {
+    font-size: 0.8em;
+    color: #aaa;
+    margin-bottom: 5px;
+}
+
+.score-display {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+    color: #ff0; /* Yellow score */
+}
+
+canvas {
+    border: 3px solid #555;
+    background-color: #000;
+    display: block; /* Prevents extra space below canvas */
+}
+
+.info-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; /* Center text vertically */
+    text-align: center;
+    padding: 20px;
+    min-width: 150px;
+    color: #ccc;
+}
+
+#autoModeDisplay {
+    font-weight: bold;
+    color: #0ff; /* Cyan */
+}
+
+/* Messages */
+.game-over-message,
+.paused-message {
+    position: absolute; /* Position relative to nearest positioned ancestor or body */
+    /* We'll position them via JS if needed, but hiding is easier first */
+    display: none; /* Hidden by default */
+    font-size: 2em;
+    font-weight: bold;
+    color: red;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    /* Centering requires knowing the container - JS can help or use fixed positioning */
+}
+
+#pausedMessage {
+    color: yellow;
+}
+
+/* Show messages when needed by adding a class or changing display style via JS */
+.game-over-message.visible,
+.paused-message.visible {
+    display: block;
+    /* Example positioning (adjust as needed, maybe center over canvas) */
+    /* top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); */
+}
