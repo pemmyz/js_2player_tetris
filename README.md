@@ -7,7 +7,13 @@
 
 A browser-based 2-player Tetris game built with HTML5 Canvas and JavaScript. Play solo, against a friend, or watch two AI bots battle it out using various strategies — including a "Smart AI" that evaluates board heuristics!
 
-![Screenshot](screenshot.png) <!-- Replace with actual screenshot if available -->
+---
+## Screenshots
+
+### Game
+![Game 1](screenshots/game_1.png)
+
+---
 
 ## 🎮 Features
 
