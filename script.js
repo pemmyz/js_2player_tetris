@@ -13,20 +13,13 @@ const autoModeElement = document.getElementById('autoModeDisplay');
 // --- Game Constants ---
 const GRID_ROWS = 20;
 const GRID_COLS = 10;
-const BLOCK_SIZE = canvas1.width / GRID_COLS; // 300 / 10 = 30
+let BLOCK_SIZE; // Will be set in init after canvas is available
 
 const COLORS = [
-    null,       // 0 is empty
-    '#FF0000', // Red
-    '#00FF00', // Green
-    '#0000FF', // Blue
-    '#00FFFF', // Cyan
-    '#FF00FF', // Magenta
-    '#FFFF00', // Yellow
-    '#FFA500'  // Orange (Added one more for variety)
+    null, '#FF0000', '#00FF00', '#0000FF', '#00FFFF',
+    '#FF00FF', '#FFFF00', '#FFA500'
 ];
 
-// Tetrimino shapes (represented by 1s)
 const SHAPES = [
     [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]], // I
     [[1,1,0], [0,1,1], [0,0,0]],                  // S
@@ -37,50 +30,52 @@ const SHAPES = [
     [[0,0,1], [1,1,1], [0,0,0]]                   // J
 ];
 
-const SCORES = [0, 40, 100, 300, 1200]; // Scores for 0, 1, 2, 3, 4 lines cleared
-const AUTO_ALGO_NAMES = ["OFF", "Center", "Left", "Right", "Random", "Smart"];
+const SCORES = [0, 40, 100, 300, 1200];
+const AUTO_ALGO_NAMES = [
+    "OFF", "Center", "Left", "Right", "Random",
+    "Smart (Balanced)", "Smart (Offensive)", "Smart (Defensive)"
+];
 
 // --- Game State ---
 let grid1, grid2;
 let currentPiece1, currentPiece2;
 let score1, score2;
-let level1, level2; // Could be used later for increasing speed
+let level1, level2;
 let gameOver1, gameOver2;
 let paused;
 let autoAlgorithmIndex;
 
 let lastMoveTime1, lastMoveTime2;
 let lastFallTime1, lastFallTime2;
-let moveInterval = 100; // ms between player moves
-let fallInterval = 500; // ms between auto-falls
+let moveInterval = 100;
+let fallInterval = 500; // Milliseconds between automatic piece drops
+let aiMoveInterval = 80;
+let smartAiMoveInterval = 50;
 
-let keysPressed = {}; // Keep track of currently pressed keys
+let keysPressed = {};
+let gameTickCounter = 0;
 
 // --- Initialization ---
 function init() {
+    BLOCK_SIZE = canvas1.width / GRID_COLS; // Set BLOCK_SIZE here
+
     grid1 = createGrid(GRID_ROWS, GRID_COLS);
     grid2 = createGrid(GRID_ROWS, GRID_COLS);
 
     currentPiece1 = createTetrimino();
-    currentPiece1.col = Math.floor(GRID_COLS / 2) - Math.floor(currentPiece1.shape[0].length / 2);
+    if (currentPiece1) currentPiece1.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(currentPiece1.shape) / 2);
     currentPiece2 = createTetrimino();
-    currentPiece2.col = Math.floor(GRID_COLS / 2) - Math.floor(currentPiece2.shape[0].length / 2);
+    if (currentPiece2) currentPiece2.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(currentPiece2.shape) / 2);
 
-
-    score1 = 0;
-    score2 = 0;
-    level1 = 1;
-    level2 = 1;
-    gameOver1 = false;
-    gameOver2 = false;
+    score1 = 0; score2 = 0;
+    level1 = 1; level2 = 1;
+    gameOver1 = false; gameOver2 = false;
     paused = false;
-    autoAlgorithmIndex = 0; // 0: OFF
+    autoAlgorithmIndex = 0;
+    gameTickCounter = 0;
 
-    lastMoveTime1 = 0;
-    lastMoveTime2 = 0;
-    lastFallTime1 = 0;
-    lastFallTime2 = 0;
-
+    lastMoveTime1 = 0; lastMoveTime2 = 0;
+    lastFallTime1 = 0; lastFallTime2 = 0;
     keysPressed = {};
 
     updateScoreDisplays();
@@ -88,670 +83,605 @@ function init() {
     gameOverElement1.style.display = 'none';
     gameOverElement2.style.display = 'none';
     pausedElement.style.display = 'none';
+    pausedElement.style.color = 'white';
 
-    // Start the game loop
+    console.log("Game Initialized. BLOCK_SIZE:", BLOCK_SIZE);
+    if (BLOCK_SIZE <= 0 || isNaN(BLOCK_SIZE)) {
+        console.error("CRITICAL: BLOCK_SIZE is invalid!", BLOCK_SIZE);
+        alert("Error: BLOCK_SIZE is invalid. Game cannot start.");
+        return;
+    }
     requestAnimationFrame(gameLoop);
 }
 
 // --- Game Loop ---
 let lastTime = 0;
 function gameLoop(currentTime) {
-    if (!lastTime) {
-        lastTime = currentTime;
-    }
-    const deltaTime = currentTime - lastTime;
+    gameTickCounter++;
+
+    if (!lastTime) lastTime = currentTime; // Initialize lastTime on first frame
+    const deltaTime = currentTime - lastTime; // Time elapsed since last frame
     lastTime = currentTime;
 
-    // Handle Input
-    handleInput(currentTime);
+    try {
+        handleInput(currentTime);
 
-    if (!paused && (!gameOver1 || !gameOver2)) { // Only update if not paused and at least one game is running
-        // Update Game State
-        update(currentTime);
+        if (!paused) { // Only update if not paused
+            if (!gameOver1 || !gameOver2) { // And at least one game is running
+                update(currentTime, deltaTime); // Pass deltaTime to update
+            }
+        }
+        draw();
+    } catch (error) {
+        console.error("ERROR IN GAME LOOP:", error.stack);
+        paused = true;
+        pausedElement.textContent = "ERROR! Game Paused. Check Console.";
+        pausedElement.style.display = 'block';
+        pausedElement.style.color = 'red';
+        return;
     }
 
-    // Draw Everything
-    draw();
-
-    // Request next frame
     requestAnimationFrame(gameLoop);
 }
 
 // --- Update Logic ---
-function update(currentTime) {
-    // Player 1 Fall
-    if (!gameOver1 && currentTime - lastFallTime1 > fallInterval) {
-        if (!checkCollision(grid1, currentPiece1, 1, 0)) {
-            currentPiece1.row++;
-        } else {
-            mergeTetrimino(grid1, currentPiece1);
-            const linesCleared = clearFullRows(grid1);
-            score1 += SCORES[linesCleared] * level1;
-            if (linesCleared > 0) updateScoreDisplays();
-            currentPiece1 = createTetrimino();
-            currentPiece1.col = Math.floor(GRID_COLS / 2) - Math.floor(currentPiece1.shape[0].length / 2);
-            // Reset smart AI computation for the new piece
-             currentPiece1.smartTargetComputed = false;
-            if (checkCollision(grid1, currentPiece1, 0, 0)) {
-                gameOver1 = true;
-                gameOverElement1.style.display = 'block'; // Show game over message
-                console.log("Player 1 Game Over");
+function update(currentTime, deltaTime) { // deltaTime is available if needed for more complex physics
+    // Player 1 Fall & New Piece
+    if (!gameOver1) {
+        if (currentTime - lastFallTime1 > fallInterval) {
+            if (!currentPiece1 || !currentPiece1.shape || currentPiece1.shape.length === 0) {
+                console.error("P1: currentPiece1 is invalid before fall check!", JSON.stringify(currentPiece1));
+                gameOver1 = true; gameOverElement1.style.display = 'block'; return;
             }
+            if (!checkCollision(grid1, currentPiece1, 1, 0)) {
+                currentPiece1.row++;
+            } else {
+                mergeTetrimino(grid1, currentPiece1);
+                const linesCleared = clearFullRows(grid1);
+                score1 += SCORES[linesCleared] * level1;
+                if (linesCleared > 0) updateScoreDisplays();
+                currentPiece1 = createTetrimino();
+                if (!currentPiece1 || !currentPiece1.shape || getShapeHeight(currentPiece1.shape) === 0) {
+                     console.error("P1: createTetrimino returned invalid piece!", JSON.stringify(currentPiece1));
+                     gameOver1 = true; gameOverElement1.style.display = 'block'; return;
+                }
+                currentPiece1.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(currentPiece1.shape) / 2);
+                currentPiece1.smartTargetComputed = false;
+                if (checkCollision(grid1, currentPiece1, 0, 0)) {
+                    gameOver1 = true; gameOverElement1.style.display = 'block';
+                }
+            }
+            lastFallTime1 = currentTime;
         }
-        lastFallTime1 = currentTime;
     }
 
-    // Player 2 Fall
-    if (!gameOver2 && currentTime - lastFallTime2 > fallInterval) {
-        if (!checkCollision(grid2, currentPiece2, 1, 0)) {
-            currentPiece2.row++;
-        } else {
-            mergeTetrimino(grid2, currentPiece2);
-            const linesCleared = clearFullRows(grid2);
-            score2 += SCORES[linesCleared] * level2;
-            if (linesCleared > 0) updateScoreDisplays();
-            currentPiece2 = createTetrimino();
-             currentPiece2.col = Math.floor(GRID_COLS / 2) - Math.floor(currentPiece2.shape[0].length / 2);
-            // Reset smart AI computation for the new piece
-             currentPiece2.smartTargetComputed = false;
-            if (checkCollision(grid2, currentPiece2, 0, 0)) {
-                gameOver2 = true;
-                gameOverElement2.style.display = 'block'; // Show game over message
-                console.log("Player 2 Game Over");
+    // Player 2 Fall & New Piece
+    if (!gameOver2) {
+        if (currentTime - lastFallTime2 > fallInterval) {
+            if (!currentPiece2 || !currentPiece2.shape || currentPiece2.shape.length === 0) {
+                console.error("P2: currentPiece2 is invalid before fall check!", JSON.stringify(currentPiece2));
+                gameOver2 = true; gameOverElement2.style.display = 'block'; return;
             }
+            if (!checkCollision(grid2, currentPiece2, 1, 0)) {
+                currentPiece2.row++;
+            } else {
+                mergeTetrimino(grid2, currentPiece2);
+                const linesCleared = clearFullRows(grid2);
+                score2 += SCORES[linesCleared] * level2;
+                if (linesCleared > 0) updateScoreDisplays();
+                currentPiece2 = createTetrimino();
+                 if (!currentPiece2 || !currentPiece2.shape || getShapeHeight(currentPiece2.shape) === 0) {
+                     console.error("P2: createTetrimino returned invalid piece!", JSON.stringify(currentPiece2));
+                     gameOver2 = true; gameOverElement2.style.display = 'block'; return;
+                }
+                currentPiece2.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(currentPiece2.shape) / 2);
+                currentPiece2.smartTargetComputed = false;
+                if (checkCollision(grid2, currentPiece2, 0, 0)) {
+                    gameOver2 = true; gameOverElement2.style.display = 'block';
+                }
+            }
+            lastFallTime2 = currentTime;
         }
-        lastFallTime2 = currentTime;
     }
 }
 
 // --- Input Handling ---
 function handleInput(currentTime) {
-     if (paused) return; // Don't process game input if paused
+    if (paused && !keysPressed['p']) return;
 
-    // --- Player 1 Input ---
-    if (!gameOver1) {
-        if (autoAlgorithmIndex === 0) { // Manual Control
-             if (currentTime - lastMoveTime1 > moveInterval) {
-                 let moved = false;
-                if (keysPressed['arrowleft'] && !checkCollision(grid1, currentPiece1, 0, -1)) {
-                    currentPiece1.col--;
-                    moved = true;
-                }
-                if (keysPressed['arrowright'] && !checkCollision(grid1, currentPiece1, 0, 1)) {
-                    currentPiece1.col++;
-                     moved = true;
-                }
-                if (keysPressed['arrowdown'] && !checkCollision(grid1, currentPiece1, 1, 0)) {
-                    currentPiece1.row++;
-                    lastFallTime1 = currentTime; // Reset fall timer on manual down move
-                     moved = true;
-                }
-                 if (moved) lastMoveTime1 = currentTime;
-                // Rotation is handled by keydown event directly for responsiveness
-             }
-        } else if (autoAlgorithmIndex === 5) { // Smart AI
-            lastMoveTime1 = smartAiMove(grid1, currentPiece1, currentTime, lastMoveTime1, moveInterval / 2); // AI can move faster
-        } else { // Other Simple AI Modes
-            lastMoveTime1 = autoPlayMove(grid1, currentPiece1, currentTime, lastMoveTime1, moveInterval, autoAlgorithmIndex);
+    // Player 1
+    if (!gameOver1 && currentPiece1) { // Ensure currentPiece1 exists
+        if (autoAlgorithmIndex === 0) { // Manual
+            if (currentTime - lastMoveTime1 > moveInterval) {
+                let moved = false;
+                if (keysPressed['arrowleft'] && !checkCollision(grid1, currentPiece1, 0, -1)) { currentPiece1.col--; moved = true; }
+                if (keysPressed['arrowright'] && !checkCollision(grid1, currentPiece1, 0, 1)) { currentPiece1.col++; moved = true; }
+                if (keysPressed['arrowdown'] && !checkCollision(grid1, currentPiece1, 1, 0)) { currentPiece1.row++; lastFallTime1 = currentTime; moved = true; }
+                if (moved) lastMoveTime1 = currentTime;
+            }
+        } else if (autoAlgorithmIndex >= 5) { // Smart AI modes
+            const aiResult = smartAiMove(grid1, currentPiece1, currentTime, lastMoveTime1, smartAiMoveInterval, lastFallTime1, autoAlgorithmIndex);
+            lastMoveTime1 = aiResult.newLastMoveTime;
+            lastFallTime1 = aiResult.newPlayerFallTime; // AI can influence this
+        } else { // Simple AI
+            lastMoveTime1 = autoPlayMove(grid1, currentPiece1, currentTime, lastMoveTime1, aiMoveInterval, autoAlgorithmIndex);
         }
     }
 
-    // --- Player 2 Input ---
-     if (!gameOver2) {
-        if (autoAlgorithmIndex === 0) { // Manual Control
-             if (currentTime - lastMoveTime2 > moveInterval) {
-                 let moved = false;
-                if (keysPressed['a'] && !checkCollision(grid2, currentPiece2, 0, -1)) {
-                    currentPiece2.col--;
-                    moved = true;
-                }
-                if (keysPressed['d'] && !checkCollision(grid2, currentPiece2, 0, 1)) {
-                    currentPiece2.col++;
-                    moved = true;
-                }
-                if (keysPressed['s'] && !checkCollision(grid2, currentPiece2, 1, 0)) {
-                    currentPiece2.row++;
-                    lastFallTime2 = currentTime; // Reset fall timer
-                    moved = true;
-                }
-                 if(moved) lastMoveTime2 = currentTime;
-                // Rotation handled by keydown
-             }
-        } else if (autoAlgorithmIndex === 5) { // Smart AI
-            lastMoveTime2 = smartAiMove(grid2, currentPiece2, currentTime, lastMoveTime2, moveInterval / 2); // AI can move faster
-        } else { // Other Simple AI Modes
-            lastMoveTime2 = autoPlayMove(grid2, currentPiece2, currentTime, lastMoveTime2, moveInterval, autoAlgorithmIndex);
+    // Player 2
+    if (!gameOver2 && currentPiece2) { // Ensure currentPiece2 exists
+        if (autoAlgorithmIndex === 0) { // Manual
+            if (currentTime - lastMoveTime2 > moveInterval) {
+                let moved = false;
+                if (keysPressed['a'] && !checkCollision(grid2, currentPiece2, 0, -1)) { currentPiece2.col--; moved = true; }
+                if (keysPressed['d'] && !checkCollision(grid2, currentPiece2, 0, 1)) { currentPiece2.col++; moved = true; }
+                if (keysPressed['s'] && !checkCollision(grid2, currentPiece2, 1, 0)) { currentPiece2.row++; lastFallTime2 = currentTime; moved = true; }
+                if (moved) lastMoveTime2 = currentTime;
+            }
+        } else if (autoAlgorithmIndex >= 5) { // Smart AI modes
+            const aiResult = smartAiMove(grid2, currentPiece2, currentTime, lastMoveTime2, smartAiMoveInterval, lastFallTime2, autoAlgorithmIndex);
+            lastMoveTime2 = aiResult.newLastMoveTime;
+            lastFallTime2 = aiResult.newPlayerFallTime; // AI can influence this
+        } else { // Simple AI
+            lastMoveTime2 = autoPlayMove(grid2, currentPiece2, currentTime, lastMoveTime2, aiMoveInterval, autoAlgorithmIndex);
         }
     }
 }
 
 // --- Drawing Functions ---
 function draw() {
-    // Clear canvases
     ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
     ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
-
-    // Draw Background Grid Lines (optional)
-    drawGridLines(ctx1);
-    drawGridLines(ctx2);
-
-    // Draw merged pieces (the stack)
-    drawGridState(ctx1, grid1);
-    drawGridState(ctx2, grid2);
-
-    // Draw current falling pieces
-    if (!gameOver1) drawTetrimino(ctx1, currentPiece1);
-    if (!gameOver2) drawTetrimino(ctx2, currentPiece2);
-
-    // Update score displays (redundant here if updated on change, but safe)
-    // updateScoreDisplays(); // Called when scores actually change
-
-    // Show pause message if paused
-    pausedElement.style.display = paused ? 'block' : 'none';
+    drawGridLines(ctx1); drawGridLines(ctx2);
+    drawGridState(ctx1, grid1); drawGridState(ctx2, grid2);
+    if (!gameOver1 && currentPiece1) drawTetrimino(ctx1, currentPiece1);
+    if (!gameOver2 && currentPiece2) drawTetrimino(ctx2, currentPiece2);
+    if (paused) {
+        pausedElement.style.display = 'block';
+    } else {
+        pausedElement.style.display = 'none';
+    }
 }
-
 function drawGridLines(ctx) {
-    ctx.strokeStyle = '#444'; // Dark grey lines
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < GRID_ROWS; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, i * BLOCK_SIZE);
-        ctx.lineTo(canvas1.width, i * BLOCK_SIZE);
-        ctx.stroke();
-    }
-    for (let j = 0; j < GRID_COLS; j++) {
-        ctx.beginPath();
-        ctx.moveTo(j * BLOCK_SIZE, 0);
-        ctx.lineTo(j * BLOCK_SIZE, canvas1.height);
-        ctx.stroke();
-    }
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5;
+    for (let i = 0; i < GRID_ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * BLOCK_SIZE); ctx.lineTo(canvas1.width, i * BLOCK_SIZE); ctx.stroke(); }
+    for (let j = 0; j < GRID_COLS; j++) { ctx.beginPath(); ctx.moveTo(j * BLOCK_SIZE, 0); ctx.lineTo(j * BLOCK_SIZE, canvas1.height); ctx.stroke(); }
 }
-
 function drawGridState(ctx, grid) {
-    for (let r = 0; r < GRID_ROWS; r++) {
-        for (let c = 0; c < GRID_COLS; c++) {
-            if (grid[r][c]) {
-                drawBlock(ctx, c, r, grid[r][c]);
-            }
-        }
-    }
+    for (let r = 0; r < GRID_ROWS; r++) { for (let c = 0; c < GRID_COLS; c++) { if (grid[r][c]) drawBlock(ctx, c, r, grid[r][c]); } }
 }
-
 function drawTetrimino(ctx, piece) {
-    ctx.fillStyle = piece.color;
-    piece.shape.forEach((row, r) => {
-        row.forEach((cell, c) => {
-            if (cell) {
-                drawBlock(ctx, piece.col + c, piece.row + r, piece.color);
-            }
-        });
-    });
+    if (!piece || !piece.shape) return;
+    piece.shape.forEach((row, r) => { row.forEach((cell, c) => { if (cell) drawBlock(ctx, piece.col + c, piece.row + r, piece.color); }); });
 }
-
 function drawBlock(ctx, x, y, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-    ctx.strokeStyle = '#111'; // Darker border for blocks
-    ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    ctx.fillStyle = color; ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    ctx.strokeStyle = '#111'; ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
 }
 
 // --- Game Logic Helpers ---
-function createGrid(rows, cols) {
-    return Array.from({ length: rows }, () => Array(cols).fill(0));
-}
+function createGrid(rows, cols) { return Array.from({ length: rows }, () => Array(cols).fill(0)); }
+function getRandomElement(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-function getRandomElement(arr) {
-     return arr[Math.floor(Math.random() * arr.length)];
+function getShapeWidth(shape) {
+    if (!shape || shape.length === 0 || !shape[0]) return 0;
+    return shape[0].length;
+}
+function getShapeHeight(shape) {
+    if (!shape) return 0;
+    return shape.length;
 }
 
 function createTetrimino() {
-    const shape = getRandomElement(SHAPES);
-    const colorIndex = Math.floor(Math.random() * (COLORS.length -1)) + 1; // Avoid index 0 (null)
+    const blueprintShape = getRandomElement(SHAPES);
+    const colorIndex = Math.floor(Math.random() * (COLORS.length - 1)) + 1;
+    const newShape = blueprintShape.map(row => [...row]);
+
+    if (getShapeWidth(newShape) === 0 || getShapeHeight(newShape) === 0) {
+        console.error("CRITICAL: createTetrimino produced invalid shape from blueprint:", JSON.stringify(blueprintShape), "Result:", JSON.stringify(newShape));
+        return { shape: [[1]], color: COLORS[1], row:0, col:0, smartTargetComputed: false, smartTargetCol: null, smartTargetRotations: 0};
+    }
     return {
-        shape: shape,
-        color: COLORS[colorIndex],
-        row: 0,
-        col: 0, // Initial col set in init/reset
-        // For smart AI
-        smartTargetComputed: false,
-        smartTargetCol: null,
-        smartTargetRotations: 0
+        shape: newShape, color: COLORS[colorIndex], row: 0, col: 0,
+        smartTargetComputed: false, smartTargetCol: null, smartTargetRotations: 0
     };
 }
 
-function rotate(piece) {
-    // Rotate clockwise
-    const shape = piece.shape;
-    const N = shape.length;
-    const newShape = Array.from({ length: N }, () => Array(N).fill(0));
+function rotateSinglePiece(pieceToRotate) {
+    if (!pieceToRotate || !pieceToRotate.shape || getShapeHeight(pieceToRotate.shape) === 0) {
+        // console.error("rotateSinglePiece received invalid shape:", pieceToRotate ? JSON.stringify(pieceToRotate.shape) : "null piece");
+        return pieceToRotate && pieceToRotate.shape ? pieceToRotate.shape.map(r => [...r]) : [[1]];
+    }
+    const shape = pieceToRotate.shape;
+    const H = getShapeHeight(shape);
+    const W = getShapeWidth(shape);
+    const N = Math.max(W, H); // Ensure rotation matrix is large enough
+    const tempMatrix = Array.from({ length: N }, () => Array(N).fill(0));
 
-    for (let r = 0; r < N; r++) {
-        for (let c = 0; c < N; c++) {
-            if (shape[r][c]) {
-                 newShape[c][N - 1 - r] = shape[r][c];
-            }
+    // Copy shape into top-left of tempMatrix
+    for (let r = 0; r < H; r++) {
+        for (let c = 0; c < W; c++) {
+            if (shape[r][c]) tempMatrix[r][c] = shape[r][c];
         }
     }
 
-     // Trim empty rows/cols from the rotated shape (important for non-square pieces)
-     return trimShape(newShape);
+    const rotatedMatrix = Array.from({ length: N }, () => Array(N).fill(0));
+    for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+            if (tempMatrix[r][c]) rotatedMatrix[c][N - 1 - r] = tempMatrix[r][c];
+        }
+    }
+    const finalShape = trimShape(rotatedMatrix);
+    if (getShapeWidth(finalShape) === 0 || getShapeHeight(finalShape) === 0) {
+        // console.error("CRITICAL: Rotation/Trimming resulted in empty shape. Input to trim:", JSON.stringify(rotatedMatrix), "Output:", JSON.stringify(finalShape));
+        return trimShape(pieceToRotate.shape.map(r => [...r])); // Fallback: re-trim original
+    }
+    return finalShape;
 }
 
 function trimShape(shape) {
-    let minRow = shape.length, maxRow = -1, minCol = shape.length, maxCol = -1;
+    if (!shape || shape.length === 0) return [[0]]; // Handle empty or null shape
+    let minRow = shape.length, maxRow = -1, minCol = Infinity, maxCol = -1;
 
     for(let r=0; r<shape.length; r++) {
+        if (!shape[r] || !Array.isArray(shape[r])) {
+             // console.warn("trimShape: Malformed row encountered:", r, JSON.stringify(shape[r]));
+             return [[0]];
+        }
         for(let c=0; c<shape[r].length; c++) {
             if (shape[r][c]) {
-                minRow = Math.min(minRow, r);
-                maxRow = Math.max(maxRow, r);
-                minCol = Math.min(minCol, c);
-                maxCol = Math.max(maxCol, c);
+                minRow = Math.min(minRow, r); maxRow = Math.max(maxRow, r);
+                minCol = Math.min(minCol, c); maxCol = Math.max(maxCol, c);
             }
         }
     }
 
-    // If the shape was entirely empty (shouldn't happen with valid tetriminos)
-    if (minRow > maxRow || minCol > maxCol) {
-         return [[0]]; // Return a minimal empty shape
+    if (minRow > maxRow || minCol > maxCol || minCol === Infinity) { // Check if any blocks were found
+        // console.warn("trimShape: No solid blocks found or invalid dimensions. Input:", JSON.stringify(shape));
+        return [[0]];
     }
 
     const trimmed = [];
     for (let r = minRow; r <= maxRow; r++) {
-        trimmed.push(shape[r].slice(minCol, maxCol + 1));
+        if(shape[r] && Array.isArray(shape[r])) {
+            trimmed.push(shape[r].slice(minCol, maxCol + 1));
+        } else {
+             // console.warn("trimShape: Malformed row during slice:", r, JSON.stringify(shape[r]));
+             return [[0]];
+        }
+    }
+    if (trimmed.length === 0 || getShapeWidth(trimmed) === 0) {
+        // console.warn("trimShape: Resulted in empty/invalid trimmed shape. Input:", JSON.stringify(shape));
+        return [[0]];
     }
     return trimmed;
 }
 
-
 function checkCollision(grid, piece, rowOffset, colOffset) {
+    if (!piece || !piece.shape) { /*console.error("checkCollision with invalid piece", piece);*/ return true; }
     for (let r = 0; r < piece.shape.length; r++) {
+        if(!piece.shape[r]) continue; // Robustness for malformed shapes
         for (let c = 0; c < piece.shape[r].length; c++) {
             if (piece.shape[r][c]) {
                 const newRow = piece.row + r + rowOffset;
                 const newCol = piece.col + c + colOffset;
-
-                // Check boundaries
-                if (newRow < 0 || newRow >= GRID_ROWS || newCol < 0 || newCol >= GRID_COLS) {
-                    return true; // Collision with boundary
-                }
-                // Check grid collision (make sure grid cell exists before checking)
-                if (grid[newRow] && grid[newRow][newCol] !== 0) {
-                    return true; // Collision with existing block
-                }
+                if (newRow < 0 || newRow >= GRID_ROWS || newCol < 0 || newCol >= GRID_COLS) return true;
+                if (grid[newRow] && grid[newRow][newCol] !== 0) return true;
             }
         }
     }
-    return false; // No collision
+    return false;
 }
-
 function mergeTetrimino(grid, piece) {
+    if (!piece || !piece.shape) { /*console.error("mergeTetrimino with invalid piece", piece);*/ return; }
     piece.shape.forEach((row, r) => {
+        if(!row) return; // Robustness
         row.forEach((cell, c) => {
             if (cell) {
-                 // Make sure we are within bounds before merging
-                 const mergeRow = piece.row + r;
-                 const mergeCol = piece.col + c;
+                 const mergeRow = piece.row + r; const mergeCol = piece.col + c;
                  if (mergeRow >= 0 && mergeRow < GRID_ROWS && mergeCol >=0 && mergeCol < GRID_COLS) {
-                    grid[mergeRow][mergeCol] = piece.color; // Use color value
+                    grid[mergeRow][mergeCol] = piece.color;
                  }
             }
         });
     });
 }
-
 function clearFullRows(grid) {
     let linesCleared = 0;
-    for (let r = GRID_ROWS - 1; r >= 0; ) { // Iterate downwards
+    for (let r = GRID_ROWS - 1; r >= 0; ) {
         if (grid[r].every(cell => cell !== 0)) {
-            // Row is full, remove it
-            grid.splice(r, 1); // Remove the row at index r
-            // Add a new empty row at the top
-            grid.unshift(Array(GRID_COLS).fill(0));
+            grid.splice(r, 1); grid.unshift(Array(GRID_COLS).fill(0));
             linesCleared++;
-            // Don't decrement r, check the new row at the same index
-        } else {
-            r--; // Move to the next row up
-        }
+        } else { r--; }
     }
     return linesCleared;
 }
-
-function updateScoreDisplays() {
-    scoreElement1.textContent = score1;
-    scoreElement2.textContent = score2;
-}
-
-function updateAutoModeDisplay() {
-    autoModeElement.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex];
-}
+function updateScoreDisplays() { scoreElement1.textContent = score1; scoreElement2.textContent = score2; }
+function updateAutoModeDisplay() { autoModeElement.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex]; }
 
 // --- AI Logic ---
-
 function autoPlayMove(grid, piece, currentTime, lastMoveTime, moveSpeed, algorithmIndex) {
+    if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return lastMoveTime;
     if (currentTime - lastMoveTime > moveSpeed) {
         let moved = false;
-        if (algorithmIndex === 1) { // Center
-            const targetCol = Math.floor(GRID_COLS / 2) - Math.floor(piece.shape[0].length / 2);
-            if (piece.col < targetCol && !checkCollision(grid, piece, 0, 1)) {
-                piece.col++; moved = true;
-            } else if (piece.col > targetCol && !checkCollision(grid, piece, 0, -1)) {
-                piece.col--; moved = true;
-            }
-        } else if (algorithmIndex === 2) { // Left
-            if (!checkCollision(grid, piece, 0, -1)) {
-                piece.col--; moved = true;
-            }
-        } else if (algorithmIndex === 3) { // Right
-            if (!checkCollision(grid, piece, 0, 1)) {
-                piece.col++; moved = true;
-            }
-        } else if (algorithmIndex === 4) { // Random
-            const action = Math.random();
-            if (action < 0.33 && !checkCollision(grid, piece, 0, -1)) {
-                piece.col--; moved = true;
-            } else if (action < 0.66 && !checkCollision(grid, piece, 0, 1)) {
-                piece.col++; moved = true;
-            } else {
-                 // Maybe random rotation sometimes? (Optional)
-                 // if (Math.random() < 0.1) tryRotate(grid, piece);
-            }
+        switch (algorithmIndex) {
+            case 1: // Center
+                const targetCol = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(piece.shape) / 2);
+                if (piece.col < targetCol && !checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; }
+                else if (piece.col > targetCol && !checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; }
+                break;
+            case 2: // Left
+                if (!checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; }
+                else if (Math.random() < 0.1) tryRotate(grid, piece);
+                break;
+            case 3: // Right
+                if (!checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; }
+                else if (Math.random() < 0.1) tryRotate(grid, piece);
+                break;
+            case 4: // Random
+                const action = Math.random();
+                if (action < 0.33 && !checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; }
+                else if (action < 0.66 && !checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; }
+                else if (action < 0.80) { tryRotate(grid,piece); moved = true; }
+                if (Math.random() < 0.05 && !checkCollision(grid, piece, 1,0)) {piece.row++; moved = true;}
+                break;
         }
         if (moved) return currentTime;
     }
     return lastMoveTime;
 }
 
-
-function computeBestPlacement(grid, piece) {
-    let bestScore = -Infinity;
-    let bestChoice = { col: piece.col, rotations: 0, finalRow: -1 }; // Default: current column, no rotation
-
-    const originalShape = piece.shape; // Keep original
-
-     // Helper to calculate heuristic score for a grid state
-     function calculateHeuristic(tempGrid, finalRow) {
-        let score = 0;
-        let linesCleared = 0;
-        let holePenalty = 0;
-        let heightPenalty = 0;
-        let bumpiness = 0;
-
-        // Simulate clearing lines
-        let rowsToCheck = [];
-        for(let r=0; r < GRID_ROWS; r++) {
-            if (tempGrid[r].every(cell => cell !== 0)) {
-                 linesCleared++;
-             } else {
-                 rowsToCheck.push([...tempGrid[r]]); // Keep uncleared rows
-             }
-        }
-        // Add cleared lines score bonus (very high)
-        score += (linesCleared * linesCleared) * 1000; // Prioritize line clears significantly
-
-        // Analyze the state *after* simulated clears
-        let effectiveGrid = Array(linesCleared).fill(0).map(() => Array(GRID_COLS).fill(0)).concat(rowsToCheck);
-
-        // Calculate aggregate height and holes
-        let aggregateHeight = 0;
-        let columnHeights = Array(GRID_COLS).fill(0);
-
-        for (let c = 0; c < GRID_COLS; c++) {
-            let columnHeight = 0;
-            let columnHoles = 0;
-            let blockFound = false;
-            for (let r = 0; r < GRID_ROWS; r++) {
-                if (effectiveGrid[r][c]) {
-                    if (!blockFound) {
-                        columnHeight = GRID_ROWS - r;
-                        blockFound = true;
-                    }
-                } else if (blockFound) { // Hole found
-                    columnHoles++;
-                }
-            }
-            columnHeights[c] = columnHeight;
-            aggregateHeight += columnHeight;
-            holePenalty += columnHoles * 50; // Penalize holes heavily
-        }
-
-        // Calculate bumpiness (sum of height differences between adjacent columns)
-        for (let c = 0; c < GRID_COLS - 1; c++) {
-            bumpiness += Math.abs(columnHeights[c] - columnHeights[c + 1]) * 5; // Penalize bumpiness
-        }
-
-        heightPenalty = aggregateHeight * 10; // Penalize overall height
-
-        // Final score combination (tweak weights as needed)
-        score -= holePenalty;
-        score -= heightPenalty;
-        score -= bumpiness;
-        // Add a small bonus for lower placement (higher finalRow is lower on screen)
-        score += finalRow * 2;
-
-        return score;
-    }
-
-
-    for (let r = 0; r < 4; r++) { // Try 0 to 3 rotations
-        let currentShape = piece.shape; // Start with shape for this rotation cycle
-        let testPiece = { ...piece, shape: currentShape }; // Create a copy
-
-        const pieceWidth = testPiece.shape[0].length;
-
-        for (let c = 0; c <= GRID_COLS - pieceWidth; c++) { // Try every possible column
-            testPiece.col = c;
-            testPiece.row = 0; // Start from top
-
-            // Simulate drop
-            let tempRow = 0;
-            while (!checkCollision(grid, testPiece, 1, 0)) {
-                 testPiece.row++;
-            }
-            let finalRow = testPiece.row; // This is where it lands
-
-            // Simulate merge onto a temporary grid
-            let tempGrid = grid.map(row => [...row]); // Deep copy grid
-            let possible = true;
-             testPiece.shape.forEach((rowArr, y) => {
-                 rowArr.forEach((cell, x) => {
-                     if (cell) {
-                         const boardRow = finalRow + y;
-                         const boardCol = c + x;
-                         if (boardRow < 0 || boardRow >= GRID_ROWS || boardCol < 0 || boardCol >= GRID_COLS) {
-                             possible = false; // Should not happen if collision check works
-                         } else {
-                             tempGrid[boardRow][boardCol] = testPiece.color; // Mark placement
-                         }
-                     }
-                 });
-             });
-
-             if (!possible) continue; // Skip impossible placements
-
-             // Calculate score for this placement
-            let currentScore = calculateHeuristic(tempGrid, finalRow);
-
-
-            // Update best choice if this score is better
-            if (currentScore > bestScore) {
-                bestScore = currentScore;
-                bestChoice = { col: c, rotations: r, finalRow: finalRow };
-            }
-        }
-
-        // Rotate the piece *for the next iteration* of the outer loop
-        piece.shape = rotate(piece);
-        // Check if rotation itself is valid at origin, otherwise this path might be impossible (edge case)
-        if (checkCollision(grid, { ...piece, row: 0, col: 0 }, 0, 0) && r < 3) {
-             // If a rotation is invalid immediately, we might not explore all possibilities correctly.
-             // A more robust approach involves wall kicks, but this is simpler.
-             // We can stop exploring rotations if one becomes invalid early.
-             // break; // Or just continue, accepting potentially fewer options explored
-        }
-    }
-
-    // Restore original shape to the actual piece
-    piece.shape = originalShape;
-
-    return bestChoice; // { col, rotations, finalRow }
+// --- Smart AI ---
+function getAiStrategy(algorithmIndex) {
+    if (algorithmIndex === 5) return "balanced";
+    if (algorithmIndex === 6) return "offensive";
+    if (algorithmIndex === 7) return "defensive";
+    return "balanced";
 }
 
+function computeBestPlacement(grid, currentPieceState, strategy) {
+    // console.time(`computeBestPlacement Strategy: ${strategy} Piece: ${JSON.stringify(currentPieceState.shape)}`);
+    let bestScore = -Infinity;
+    let bestChoice = null;
 
-function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed) {
-     if (currentTime - lastMoveTime > moveSpeed) {
-         if (!piece.smartTargetComputed) {
-             const best = computeBestPlacement(grid, piece);
-             piece.smartTargetCol = best.col;
-             piece.smartTargetRotations = best.rotations;
-             piece.smartTargetComputed = true;
-              // console.log(`AI Target: Col ${best.col}, Rotations ${best.rotations}`);
-         }
+    // Calculate a default choice (current column, 0 rotations, dropped row)
+    let tempCurrentPieceForBaseline = {...currentPieceState, shape: currentPieceState.shape.map(r => [...r])};
+    let initialSimRow = tempCurrentPieceForBaseline.row;
+    // Ensure valid piece for baseline drop simulation
+    if(getShapeHeight(tempCurrentPieceForBaseline.shape) > 0){
+        while(!checkCollision(grid, {...tempCurrentPieceForBaseline, row: initialSimRow}, 1, 0)) {
+            initialSimRow++;
+            if (initialSimRow > GRID_ROWS + getShapeHeight(tempCurrentPieceForBaseline.shape) + 5) break;
+        }
+    } else { // If piece is invalid, default to top of grid.
+        initialSimRow = 0;
+    }
+    let defaultChoice = { col: currentPieceState.col, rotations: 0, finalRow: initialSimRow };
 
-         let actionTaken = false;
 
-         // 1. Perform Rotations
-         if (piece.smartTargetRotations > 0) {
-             const rotatedShape = rotate(piece); // Get the potential new shape
-              // Create a temporary piece to check collision *after* rotation
-             const tempPiece = { ...piece, shape: rotatedShape };
-              if (!checkCollision(grid, tempPiece, 0, 0)) {
-                 piece.shape = rotatedShape; // Apply rotation
-                 piece.smartTargetRotations--;
-                 actionTaken = true;
-                  // console.log("AI Rotated");
-             } else {
-                 // Rotation blocked, maybe recalculate? Or just give up on this rotation?
-                 // For simplicity, we'll just stall rotation for now. A better AI might recalculate.
-                 piece.smartTargetRotations = 0; // Give up on rotating for this piece placement
-             }
-         }
-         // 2. Move Horizontally
-         else if (piece.col < piece.smartTargetCol) {
-             if (!checkCollision(grid, piece, 0, 1)) {
-                 piece.col++;
-                 actionTaken = true;
-                  // console.log("AI Moved Right");
-             } else {
-                // Blocked, recalculate or give up
-                 piece.smartTargetComputed = false; // Force recalculation next tick
-             }
-         } else if (piece.col > piece.smartTargetCol) {
-             if (!checkCollision(grid, piece, 0, -1)) {
-                 piece.col--;
-                 actionTaken = true;
-                  // console.log("AI Moved Left");
-             } else {
-                 // Blocked, recalculate or give up
-                 piece.smartTargetComputed = false; // Force recalculation
-             }
-         }
-         // 3. If aligned, move down (or let gravity handle it, or hard drop)
-         else if (piece.col === piece.smartTargetCol && piece.smartTargetRotations === 0) {
-             // Optional: Implement hard drop for speed
-             // while (!checkCollision(grid, piece, 1, 0)) {
-             //     piece.row++;
-             // }
-             // lastFallTime = currentTime; // Trigger merge immediately if hard dropping
-             // actionTaken = true; // Consider hard drop an action
+    const originalPieceShapeBlueprint = currentPieceState.shape.map(row => [...row]);
+    let shapeForCurrentRotationCycle = originalPieceShapeBlueprint.map(row => [...row]);
 
-             // Or simply let gravity take over faster:
-             if (!checkCollision(grid, piece, 1, 0)) {
-                 piece.row++;
-                 // Don't set actionTaken=true here, let natural fall happen
-                 // Reset fall timer to speed up descent when aligned
-                 lastFallTime1 = currentTime; // Adjust based on which player's AI
-                 lastFallTime2 = currentTime;
-             } else {
-                // If it's aligned but immediately collides, let the main loop handle the merge
-             }
+    for (let r = 0; r < 4; r++) {
+        if (r > 0) {
+            shapeForCurrentRotationCycle = rotateSinglePiece({ shape: shapeForCurrentRotationCycle });
+        }
+        if (getShapeWidth(shapeForCurrentRotationCycle) === 0 || getShapeHeight(shapeForCurrentRotationCycle) === 0) {
+            continue;
+        }
+        const pieceWidth = getShapeWidth(shapeForCurrentRotationCycle);
 
-         }
+        for (let c = 0; c <= GRID_COLS - pieceWidth; c++) {
+            const simPieceConfig = {
+                shape: shapeForCurrentRotationCycle, color: currentPieceState.color,
+                row: 0, col: c
+            };
+            if(getShapeHeight(simPieceConfig.shape) === 0) continue;
 
-         if (actionTaken) {
-             return currentTime; // Reset move timer only if AI took an action
-         }
-     }
-     return lastMoveTime; // Keep the old time if no action was taken or interval not passed
- }
+            let tempSimRow = 0;
+            while (!checkCollision(grid, { ...simPieceConfig, row: tempSimRow }, 1, 0)) {
+                tempSimRow++;
+                if (tempSimRow > GRID_ROWS + getShapeHeight(simPieceConfig.shape) + 5) { break; }
+            }
+            let finalRow = tempSimRow;
 
+            let tempGrid = grid.map(gRow => [...gRow]);
+            let possibleToPlace = true;
+            simPieceConfig.shape.forEach((rowArr, y) => {
+                if(!rowArr) {possibleToPlace = false; return;}
+                rowArr.forEach((cell, x) => {
+                    if (cell) {
+                        const boardRow = finalRow + y; const boardCol = simPieceConfig.col + x;
+                        if (boardRow < 0 || boardRow >= GRID_ROWS || boardCol < 0 || boardCol >= GRID_COLS || !tempGrid[boardRow]) {
+                            possibleToPlace = false;
+                        } else { tempGrid[boardRow][boardCol] = simPieceConfig.color; }
+                    }
+                });
+                 if(!possibleToPlace) return;
+            });
+            if (!possibleToPlace) continue;
+
+            let currentScore = calculateHeuristic(tempGrid, finalRow, strategy);
+            if (currentScore > bestScore) {
+                bestScore = currentScore;
+                bestChoice = { col: simPieceConfig.col, rotations: r, finalRow: finalRow };
+            }
+        }
+    }
+    // console.timeEnd(`computeBestPlacement Strategy: ${strategy} Piece: ${JSON.stringify(currentPieceState.shape)}`);
+    return bestChoice || defaultChoice; // Return best found or the default
+}
+
+function calculateHeuristic(tempGrid, finalRow, strategy = "balanced") {
+    let score = 0; let linesClearedScore = 0; let holePenalty = 0;
+    let heightPenalty = 0; let bumpinessPenalty = 0;
+
+    let clearedInSim = 0;
+    let simulatedGridForScoring = tempGrid.map(row => [...row]);
+    for (let r = GRID_ROWS - 1; r >= 0; ) {
+        if (simulatedGridForScoring[r].every(cell => cell !== 0)) {
+            simulatedGridForScoring.splice(r, 1);
+            simulatedGridForScoring.unshift(Array(GRID_COLS).fill(0));
+            clearedInSim++;
+        } else { r--; }
+    }
+
+    let W = { LINES_CLEARED: 0, HOLES: 0, AGGREGATE_HEIGHT: 0, BUMPINESS: 0, FINAL_ROW: 0 };
+    if (strategy === "offensive") { W.LINES_CLEARED = 2500; W.HOLES = 30; W.AGGREGATE_HEIGHT = 3; W.BUMPINESS = 1; W.FINAL_ROW = 1; }
+    else if (strategy === "defensive") { W.LINES_CLEARED = 600; W.HOLES = 120; W.AGGREGATE_HEIGHT = 25; W.BUMPINESS = 15; W.FINAL_ROW = 4; }
+    else { W.LINES_CLEARED = 1000; W.HOLES = 60; W.AGGREGATE_HEIGHT = 10; W.BUMPINESS = 5; W.FINAL_ROW = 2; }
+
+    linesClearedScore = (clearedInSim * clearedInSim * clearedInSim) * W.LINES_CLEARED;
+
+    let aggregateHeight = 0; let columnHeights = Array(GRID_COLS).fill(0); let totalHoles = 0;
+    for (let c = 0; c < GRID_COLS; c++) {
+        let firstBlockRow = -1;
+        for (let r = 0; r < GRID_ROWS; r++) {
+            if (simulatedGridForScoring[r][c]) { if (firstBlockRow === -1) firstBlockRow = r; }
+            else { if (firstBlockRow !== -1) totalHoles++; }
+        }
+        columnHeights[c] = (firstBlockRow === -1) ? 0 : GRID_ROWS - firstBlockRow;
+        aggregateHeight += columnHeights[c];
+    }
+    holePenalty = totalHoles * W.HOLES;
+    if (strategy === "defensive" && totalHoles > 0) holePenalty *= 1.5;
+    heightPenalty = aggregateHeight * W.AGGREGATE_HEIGHT;
+    if (strategy === "defensive" && columnHeights.length > 0) heightPenalty += Math.max(...columnHeights) * 10; // Check length
+    for (let c = 0; c < GRID_COLS - 1; c++) { bumpinessPenalty += Math.abs(columnHeights[c] - columnHeights[c + 1]) * W.BUMPINESS; }
+
+    score = linesClearedScore - holePenalty - heightPenalty - bumpinessPenalty + (finalRow * W.FINAL_ROW);
+    return score;
+}
+
+function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed, playerFallTime, algorithmIndex) {
+    let updatedLastMoveTime = lastMoveTime;
+    let updatedPlayerFallTime = playerFallTime; // By default, AI does not alter fall time
+    let actionTakenThisTick = false;
+
+    if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) {
+        // console.error("SmartAIMove: Invalid piece received.", JSON.stringify(piece));
+        return { newLastMoveTime: lastMoveTime, newPlayerFallTime: playerFallTime };
+    }
+
+    if (currentTime - lastMoveTime > moveSpeed) {
+        if (!piece.smartTargetComputed) {
+            const strategy = getAiStrategy(algorithmIndex);
+            const best = computeBestPlacement(grid, piece, strategy); // computeBestPlacement now always returns an object
+
+            piece.smartTargetCol = best.col;
+            piece.smartTargetRotations = best.rotations;
+            piece.smartTargetComputed = true;
+        }
+
+        if (piece.smartTargetComputed) {
+            // 1. Perform Rotations
+            if (piece.smartTargetRotations > 0) {
+                const shapeBeforeRotationAttempt = piece.shape.map(r => [...r]);
+                const rotatedShapeCandidate = rotateSinglePiece({ shape: shapeBeforeRotationAttempt });
+
+                if (getShapeWidth(rotatedShapeCandidate) === 0 || getShapeHeight(rotatedShapeCandidate) === 0) {
+                    piece.smartTargetRotations = 0; piece.smartTargetComputed = false;
+                } else {
+                    const tempPieceConfig = { ...piece, shape: rotatedShapeCandidate, col: piece.col };
+                    if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
+                        piece.shape = rotatedShapeCandidate; piece.smartTargetRotations--; actionTakenThisTick = true;
+                    } else {
+                        let kicked = false;
+                        for (let kickOffset of [-1, 1, -2, 2]) {
+                            tempPieceConfig.col = piece.col + kickOffset;
+                            if (getShapeWidth(tempPieceConfig.shape) + tempPieceConfig.col > GRID_COLS || tempPieceConfig.col < 0) continue;
+                            if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
+                                piece.shape = rotatedShapeCandidate; piece.col = tempPieceConfig.col;
+                                piece.smartTargetRotations--; actionTakenThisTick = true; kicked = true; break;
+                            }
+                        }
+                        if (!kicked) piece.smartTargetComputed = false;
+                    }
+                }
+            }
+            // 2. Move Horizontally
+            else if (piece.col < piece.smartTargetCol) {
+                if (!checkCollision(grid, piece, 0, 1)) { piece.col++; actionTakenThisTick = true; }
+                else piece.smartTargetComputed = false;
+            } else if (piece.col > piece.smartTargetCol) {
+                if (!checkCollision(grid, piece, 0, -1)) { piece.col--; actionTakenThisTick = true; }
+                else piece.smartTargetComputed = false;
+            }
+            // 3. If aligned, AI might choose to accelerate fall (optional)
+            else if (piece.col === piece.smartTargetCol && piece.smartTargetRotations === 0) {
+                // Example: Accelerate fall if aligned.
+                // if (!checkCollision(grid, piece, 1, 0)) {
+                //    updatedPlayerFallTime = currentTime - (fallInterval * 0.5); // Make it fall faster
+                // }
+            }
+        }
+
+        if (actionTakenThisTick) {
+            updatedLastMoveTime = currentTime;
+        } else if (!piece.smartTargetComputed) { // If target became invalid (e.g. blocked)
+            updatedLastMoveTime = currentTime; // Recompute quickly
+        }
+    }
+    return { newLastMoveTime: updatedLastMoveTime, newPlayerFallTime: updatedPlayerFallTime };
+}
 
 // --- Event Listeners ---
 document.addEventListener('keydown', (event) => {
-    // Global controls
-    if (event.key.toLowerCase() === 'p') {
+    const key = event.key.toLowerCase();
+    if (key === 'p') {
         paused = !paused;
-        pausedElement.style.display = paused ? 'block' : 'none';
-        console.log(paused ? "Paused" : "Resumed");
-        return; // Don't process other keys if pausing/unpausing
-    }
-    if (event.key.toLowerCase() === 't') {
-        autoAlgorithmIndex = (autoAlgorithmIndex + 1) % AUTO_ALGO_NAMES.length;
-        updateAutoModeDisplay();
-        // Reset smart AI computation when mode changes
-        if (currentPiece1) currentPiece1.smartTargetComputed = false;
-        if (currentPiece2) currentPiece2.smartTargetComputed = false;
-         console.log("Auto Mode:", AUTO_ALGO_NAMES[autoAlgorithmIndex]);
+        if (paused) {
+            pausedElement.textContent = "Paused";
+            pausedElement.style.color = "white";
+            pausedElement.style.display = 'block';
+        } else {
+            pausedElement.style.display = 'none';
+            lastTime = performance.now(); // Crucial for unpausing
+        }
         return;
     }
-     if (event.key === 'Escape') { // Optional: Reset game on Escape?
-         console.log("Escape pressed - resetting maybe?");
-         // init(); // Uncomment to reset game on Escape
-     }
+    if (key === 't') {
+        autoAlgorithmIndex = (autoAlgorithmIndex + 1) % AUTO_ALGO_NAMES.length;
+        updateAutoModeDisplay();
+        if (currentPiece1) currentPiece1.smartTargetComputed = false;
+        if (currentPiece2) currentPiece2.smartTargetComputed = false;
+        return;
+    }
+    if (paused) return;
+    keysPressed[key] = true;
 
-    if (paused) return; // Ignore game keys if paused
-
-    keysPressed[event.key.toLowerCase()] = true; // Track pressed keys
-
-    // Handle rotations immediately on keydown for responsiveness (if manual mode)
      if (autoAlgorithmIndex === 0) {
-         // Player 1 Rotate
-         if (!gameOver1 && event.key === 'ArrowUp') {
-             tryRotate(grid1, currentPiece1);
-         }
-         // Player 2 Rotate
-         if (!gameOver2 && event.key.toLowerCase() === 'w') {
-              tryRotate(grid2, currentPiece2);
-         }
+         if (!gameOver1 && currentPiece1 && event.key === 'ArrowUp') tryRotate(grid1, currentPiece1);
+         if (!gameOver2 && currentPiece2 && key === 'w') tryRotate(grid2, currentPiece2);
      }
 });
-
-document.addEventListener('keyup', (event) => {
-    delete keysPressed[event.key.toLowerCase()]; // Stop tracking released keys
-});
-
+document.addEventListener('keyup', (event) => { delete keysPressed[event.key.toLowerCase()]; });
 
 function tryRotate(grid, piece) {
-    const originalShape = piece.shape;
-    const rotatedShape = rotate(piece); // Use the helper function
-    const originalCol = piece.col; // Store original column for wall kick check
+    if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return;
+    const originalShapeCopy = piece.shape.map(r => [...r]);
+    const originalCol = piece.col;
+    const rotatedShapeCandidate = rotateSinglePiece({ shape: originalShapeCopy });
 
-    // Create a temporary piece with the rotated shape to check collision
-    const tempPiece = { ...piece, shape: rotatedShape };
+    if (getShapeWidth(rotatedShapeCandidate) === 0 || getShapeHeight(rotatedShapeCandidate) === 0) return;
+    let tempPieceConfig = { ...piece, shape: rotatedShapeCandidate, col: originalCol };
 
-    if (!checkCollision(grid, tempPiece, 0, 0)) {
-        // Simple rotation works
-        piece.shape = rotatedShape;
-    } else {
-        // Basic Wall Kick Logic (try moving one or two units left/right)
-        let kicked = false;
-        for (let kick of [-1, 1, -2, 2]) { // Check kicks: left 1, right 1, left 2, right 2
-            tempPiece.col = originalCol + kick; // Try moving
-            if (!checkCollision(grid, tempPiece, 0, 0)) {
-                piece.shape = rotatedShape;
-                piece.col = tempPiece.col; // Apply kick
-                kicked = true;
-                break; // Stop after first successful kick
-            }
-        }
-        // If no kick worked, revert piece column (shape remains original)
-        if (!kicked) {
-             piece.col = originalCol;
-             // console.log("Rotation failed even with kicks");
+    if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
+        piece.shape = rotatedShapeCandidate; return;
+    }
+    const kicks = [-1, 1, -2, 2];
+    for (let kick of kicks) {
+        tempPieceConfig.col = originalCol + kick;
+         if (getShapeWidth(tempPieceConfig.shape) + tempPieceConfig.col > GRID_COLS || tempPieceConfig.col < 0) continue;
+        if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
+            piece.shape = rotatedShapeCandidate; piece.col = tempPieceConfig.col; return;
         }
     }
+    piece.col = originalCol;
 }
 
-
 // --- Start the game ---
-init();
+// Ensure DOM is ready before trying to get canvas elements
+document.addEventListener('DOMContentLoaded', (event) => {
+    init();
+});
