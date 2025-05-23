@@ -8,7 +8,9 @@ const scoreElement2 = document.getElementById('score2');
 const gameOverElement1 = document.getElementById('gameOver1');
 const gameOverElement2 = document.getElementById('gameOver2');
 const pausedElement = document.getElementById('pausedMessage');
-const autoModeElement = document.getElementById('autoModeDisplay');
+// MODIFIED: Get individual AI mode display elements
+const autoModeElement1 = document.getElementById('autoModeDisplay1');
+const autoModeElement2 = document.getElementById('autoModeDisplay2');
 
 // --- Game Constants ---
 const GRID_ROWS = 20;
@@ -30,7 +32,7 @@ const SHAPES = [
     [[0,0,1], [1,1,1], [0,0,0]]                   // J
 ];
 
-const SCORES = [0, 40, 100, 300, 1200];
+const SCORES = [0, 40, 100, 300, 1200]; // Score per lines cleared
 const AUTO_ALGO_NAMES = [
     "OFF", "Center", "Left", "Right", "Random",
     "Smart (Balanced)", "Smart (Offensive)", "Smart (Defensive)"
@@ -43,21 +45,23 @@ let score1, score2;
 let level1, level2;
 let gameOver1, gameOver2;
 let paused;
-let autoAlgorithmIndex;
+// MODIFIED: Separate AI algorithm indices
+let autoAlgorithmIndex1;
+let autoAlgorithmIndex2;
 
 let lastMoveTime1, lastMoveTime2;
 let lastFallTime1, lastFallTime2;
-let moveInterval = 100;
+let moveInterval = 100; // Interval for repeated horizontal/soft drop moves
 let fallInterval = 500; // Milliseconds between automatic piece drops
-let aiMoveInterval = 80;
-let smartAiMoveInterval = 50;
+let aiMoveInterval = 80; // Interval for simple AI moves
+let smartAiMoveInterval = 50; // Interval for smart AI computations/moves
 
 let keysPressed = {};
 let gameTickCounter = 0;
 
 // --- Initialization ---
 function init() {
-    BLOCK_SIZE = canvas1.width / GRID_COLS; // Set BLOCK_SIZE here
+    BLOCK_SIZE = canvas1.width / GRID_COLS;
 
     grid1 = createGrid(GRID_ROWS, GRID_COLS);
     grid2 = createGrid(GRID_ROWS, GRID_COLS);
@@ -71,7 +75,9 @@ function init() {
     level1 = 1; level2 = 1;
     gameOver1 = false; gameOver2 = false;
     paused = false;
-    autoAlgorithmIndex = 0;
+    // MODIFIED: Initialize separate AI indices
+    autoAlgorithmIndex1 = 0;
+    autoAlgorithmIndex2 = 0;
     gameTickCounter = 0;
 
     lastMoveTime1 = 0; lastMoveTime2 = 0;
@@ -79,7 +85,7 @@ function init() {
     keysPressed = {};
 
     updateScoreDisplays();
-    updateAutoModeDisplay();
+    updateAutoModeDisplays(); // MODIFIED: Plural
     gameOverElement1.style.display = 'none';
     gameOverElement2.style.display = 'none';
     pausedElement.style.display = 'none';
@@ -99,16 +105,16 @@ let lastTime = 0;
 function gameLoop(currentTime) {
     gameTickCounter++;
 
-    if (!lastTime) lastTime = currentTime; // Initialize lastTime on first frame
-    const deltaTime = currentTime - lastTime; // Time elapsed since last frame
+    if (!lastTime) lastTime = currentTime;
+    const deltaTime = currentTime - lastTime;
     lastTime = currentTime;
 
     try {
-        handleInput(currentTime);
+        handleInput(currentTime); // Process discrete inputs first
 
-        if (!paused) { // Only update if not paused
-            if (!gameOver1 || !gameOver2) { // And at least one game is running
-                update(currentTime, deltaTime); // Pass deltaTime to update
+        if (!paused) {
+            if (!gameOver1 || !gameOver2) {
+                update(currentTime, deltaTime);
             }
         }
         draw();
@@ -125,7 +131,7 @@ function gameLoop(currentTime) {
 }
 
 // --- Update Logic ---
-function update(currentTime, deltaTime) { // deltaTime is available if needed for more complex physics
+function update(currentTime, deltaTime) {
     // Player 1 Fall & New Piece
     if (!gameOver1) {
         if (currentTime - lastFallTime1 > fallInterval) {
@@ -187,43 +193,53 @@ function update(currentTime, deltaTime) { // deltaTime is available if needed fo
 
 // --- Input Handling ---
 function handleInput(currentTime) {
-    if (paused && !keysPressed['p']) return;
+    // Pause toggle is handled in keydown directly
 
-    // Player 1
-    if (!gameOver1 && currentPiece1) { // Ensure currentPiece1 exists
-        if (autoAlgorithmIndex === 0) { // Manual
+    // Player 1 Input
+    if (!gameOver1 && currentPiece1) {
+        if (autoAlgorithmIndex1 === 0) { // Manual P1
             if (currentTime - lastMoveTime1 > moveInterval) {
                 let moved = false;
                 if (keysPressed['arrowleft'] && !checkCollision(grid1, currentPiece1, 0, -1)) { currentPiece1.col--; moved = true; }
                 if (keysPressed['arrowright'] && !checkCollision(grid1, currentPiece1, 0, 1)) { currentPiece1.col++; moved = true; }
-                if (keysPressed['arrowdown'] && !checkCollision(grid1, currentPiece1, 1, 0)) { currentPiece1.row++; lastFallTime1 = currentTime; moved = true; }
+                // Soft drop: holding down speeds up fall by resetting lastFallTime more frequently than auto-fall
+                if (keysPressed['arrowdown'] && !checkCollision(grid1, currentPiece1, 1, 0)) {
+                    currentPiece1.row++;
+                    lastFallTime1 = currentTime; // This makes it fall faster
+                    moved = true;
+                }
                 if (moved) lastMoveTime1 = currentTime;
             }
-        } else if (autoAlgorithmIndex >= 5) { // Smart AI modes
-            const aiResult = smartAiMove(grid1, currentPiece1, currentTime, lastMoveTime1, smartAiMoveInterval, lastFallTime1, autoAlgorithmIndex);
+        } else if (autoAlgorithmIndex1 >= 5) { // Smart AI P1
+            const aiResult = smartAiMove(grid1, currentPiece1, currentTime, lastMoveTime1, smartAiMoveInterval, lastFallTime1, autoAlgorithmIndex1);
             lastMoveTime1 = aiResult.newLastMoveTime;
-            lastFallTime1 = aiResult.newPlayerFallTime; // AI can influence this
-        } else { // Simple AI
-            lastMoveTime1 = autoPlayMove(grid1, currentPiece1, currentTime, lastMoveTime1, aiMoveInterval, autoAlgorithmIndex);
+            lastFallTime1 = aiResult.newPlayerFallTime;
+        } else { // Simple AI P1
+            lastMoveTime1 = autoPlayMove(grid1, currentPiece1, currentTime, lastMoveTime1, aiMoveInterval, autoAlgorithmIndex1);
         }
     }
 
-    // Player 2
-    if (!gameOver2 && currentPiece2) { // Ensure currentPiece2 exists
-        if (autoAlgorithmIndex === 0) { // Manual
+    // Player 2 Input
+    if (!gameOver2 && currentPiece2) {
+        if (autoAlgorithmIndex2 === 0) { // Manual P2
             if (currentTime - lastMoveTime2 > moveInterval) {
                 let moved = false;
                 if (keysPressed['a'] && !checkCollision(grid2, currentPiece2, 0, -1)) { currentPiece2.col--; moved = true; }
                 if (keysPressed['d'] && !checkCollision(grid2, currentPiece2, 0, 1)) { currentPiece2.col++; moved = true; }
-                if (keysPressed['s'] && !checkCollision(grid2, currentPiece2, 1, 0)) { currentPiece2.row++; lastFallTime2 = currentTime; moved = true; }
+                // Soft drop for P2
+                if (keysPressed['s'] && !checkCollision(grid2, currentPiece2, 1, 0)) {
+                    currentPiece2.row++;
+                    lastFallTime2 = currentTime; // This makes it fall faster
+                    moved = true;
+                }
                 if (moved) lastMoveTime2 = currentTime;
             }
-        } else if (autoAlgorithmIndex >= 5) { // Smart AI modes
-            const aiResult = smartAiMove(grid2, currentPiece2, currentTime, lastMoveTime2, smartAiMoveInterval, lastFallTime2, autoAlgorithmIndex);
+        } else if (autoAlgorithmIndex2 >= 5) { // Smart AI P2
+            const aiResult = smartAiMove(grid2, currentPiece2, currentTime, lastMoveTime2, smartAiMoveInterval, lastFallTime2, autoAlgorithmIndex2);
             lastMoveTime2 = aiResult.newLastMoveTime;
-            lastFallTime2 = aiResult.newPlayerFallTime; // AI can influence this
-        } else { // Simple AI
-            lastMoveTime2 = autoPlayMove(grid2, currentPiece2, currentTime, lastMoveTime2, aiMoveInterval, autoAlgorithmIndex);
+            lastFallTime2 = aiResult.newPlayerFallTime;
+        } else { // Simple AI P2
+            lastMoveTime2 = autoPlayMove(grid2, currentPiece2, currentTime, lastMoveTime2, aiMoveInterval, autoAlgorithmIndex2);
         }
     }
 }
@@ -244,8 +260,8 @@ function draw() {
 }
 function drawGridLines(ctx) {
     ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5;
-    for (let i = 0; i < GRID_ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * BLOCK_SIZE); ctx.lineTo(canvas1.width, i * BLOCK_SIZE); ctx.stroke(); }
-    for (let j = 0; j < GRID_COLS; j++) { ctx.beginPath(); ctx.moveTo(j * BLOCK_SIZE, 0); ctx.lineTo(j * BLOCK_SIZE, canvas1.height); ctx.stroke(); }
+    for (let i = 0; i <= GRID_ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * BLOCK_SIZE); ctx.lineTo(canvas1.width, i * BLOCK_SIZE); ctx.stroke(); }
+    for (let j = 0; j <= GRID_COLS; j++) { ctx.beginPath(); ctx.moveTo(j * BLOCK_SIZE, 0); ctx.lineTo(j * BLOCK_SIZE, canvas1.height); ctx.stroke(); }
 }
 function drawGridState(ctx, grid) {
     for (let r = 0; r < GRID_ROWS; r++) { for (let c = 0; c < GRID_COLS; c++) { if (grid[r][c]) drawBlock(ctx, c, r, grid[r][c]); } }
@@ -289,16 +305,14 @@ function createTetrimino() {
 
 function rotateSinglePiece(pieceToRotate) {
     if (!pieceToRotate || !pieceToRotate.shape || getShapeHeight(pieceToRotate.shape) === 0) {
-        // console.error("rotateSinglePiece received invalid shape:", pieceToRotate ? JSON.stringify(pieceToRotate.shape) : "null piece");
         return pieceToRotate && pieceToRotate.shape ? pieceToRotate.shape.map(r => [...r]) : [[1]];
     }
     const shape = pieceToRotate.shape;
     const H = getShapeHeight(shape);
     const W = getShapeWidth(shape);
-    const N = Math.max(W, H); // Ensure rotation matrix is large enough
+    const N = Math.max(W, H);
     const tempMatrix = Array.from({ length: N }, () => Array(N).fill(0));
 
-    // Copy shape into top-left of tempMatrix
     for (let r = 0; r < H; r++) {
         for (let c = 0; c < W; c++) {
             if (shape[r][c]) tempMatrix[r][c] = shape[r][c];
@@ -313,21 +327,17 @@ function rotateSinglePiece(pieceToRotate) {
     }
     const finalShape = trimShape(rotatedMatrix);
     if (getShapeWidth(finalShape) === 0 || getShapeHeight(finalShape) === 0) {
-        // console.error("CRITICAL: Rotation/Trimming resulted in empty shape. Input to trim:", JSON.stringify(rotatedMatrix), "Output:", JSON.stringify(finalShape));
-        return trimShape(pieceToRotate.shape.map(r => [...r])); // Fallback: re-trim original
+        return trimShape(pieceToRotate.shape.map(r => [...r]));
     }
     return finalShape;
 }
 
 function trimShape(shape) {
-    if (!shape || shape.length === 0) return [[0]]; // Handle empty or null shape
+    if (!shape || shape.length === 0) return [[0]];
     let minRow = shape.length, maxRow = -1, minCol = Infinity, maxCol = -1;
 
     for(let r=0; r<shape.length; r++) {
-        if (!shape[r] || !Array.isArray(shape[r])) {
-             // console.warn("trimShape: Malformed row encountered:", r, JSON.stringify(shape[r]));
-             return [[0]];
-        }
+        if (!shape[r] || !Array.isArray(shape[r])) return [[0]];
         for(let c=0; c<shape[r].length; c++) {
             if (shape[r][c]) {
                 minRow = Math.min(minRow, r); maxRow = Math.max(maxRow, r);
@@ -336,51 +346,42 @@ function trimShape(shape) {
         }
     }
 
-    if (minRow > maxRow || minCol > maxCol || minCol === Infinity) { // Check if any blocks were found
-        // console.warn("trimShape: No solid blocks found or invalid dimensions. Input:", JSON.stringify(shape));
-        return [[0]];
-    }
+    if (minRow > maxRow || minCol > maxCol || minCol === Infinity) return [[0]];
 
     const trimmed = [];
     for (let r = minRow; r <= maxRow; r++) {
         if(shape[r] && Array.isArray(shape[r])) {
             trimmed.push(shape[r].slice(minCol, maxCol + 1));
-        } else {
-             // console.warn("trimShape: Malformed row during slice:", r, JSON.stringify(shape[r]));
-             return [[0]];
-        }
+        } else return [[0]];
     }
-    if (trimmed.length === 0 || getShapeWidth(trimmed) === 0) {
-        // console.warn("trimShape: Resulted in empty/invalid trimmed shape. Input:", JSON.stringify(shape));
-        return [[0]];
-    }
+    if (trimmed.length === 0 || getShapeWidth(trimmed) === 0) return [[0]];
     return trimmed;
 }
 
 function checkCollision(grid, piece, rowOffset, colOffset) {
-    if (!piece || !piece.shape) { /*console.error("checkCollision with invalid piece", piece);*/ return true; }
+    if (!piece || !piece.shape) return true;
     for (let r = 0; r < piece.shape.length; r++) {
-        if(!piece.shape[r]) continue; // Robustness for malformed shapes
+        if(!piece.shape[r]) continue;
         for (let c = 0; c < piece.shape[r].length; c++) {
             if (piece.shape[r][c]) {
                 const newRow = piece.row + r + rowOffset;
                 const newCol = piece.col + c + colOffset;
                 if (newRow < 0 || newRow >= GRID_ROWS || newCol < 0 || newCol >= GRID_COLS) return true;
-                if (grid[newRow] && grid[newRow][newCol] !== 0) return true;
+                if (grid[newRow] && grid[newRow][newCol] !== 0) return true; // Ensure grid[newRow] exists
             }
         }
     }
     return false;
 }
 function mergeTetrimino(grid, piece) {
-    if (!piece || !piece.shape) { /*console.error("mergeTetrimino with invalid piece", piece);*/ return; }
+    if (!piece || !piece.shape) return;
     piece.shape.forEach((row, r) => {
-        if(!row) return; // Robustness
+        if(!row) return;
         row.forEach((cell, c) => {
             if (cell) {
                  const mergeRow = piece.row + r; const mergeCol = piece.col + c;
                  if (mergeRow >= 0 && mergeRow < GRID_ROWS && mergeCol >=0 && mergeCol < GRID_COLS) {
-                    grid[mergeRow][mergeCol] = piece.color;
+                    if (grid[mergeRow]) grid[mergeRow][mergeCol] = piece.color; // Ensure grid[mergeRow] exists
                  }
             }
         });
@@ -397,10 +398,15 @@ function clearFullRows(grid) {
     return linesCleared;
 }
 function updateScoreDisplays() { scoreElement1.textContent = score1; scoreElement2.textContent = score2; }
-function updateAutoModeDisplay() { autoModeElement.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex]; }
+// MODIFIED: Function to update both AI mode displays
+function updateAutoModeDisplays() {
+    if (autoModeElement1) autoModeElement1.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex1];
+    if (autoModeElement2) autoModeElement2.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex2];
+}
 
 // --- AI Logic ---
 function autoPlayMove(grid, piece, currentTime, lastMoveTime, moveSpeed, algorithmIndex) {
+    // ... (existing autoPlayMove logic, no changes needed here for separation)
     if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return lastMoveTime;
     if (currentTime - lastMoveTime > moveSpeed) {
         let moved = false;
@@ -412,18 +418,18 @@ function autoPlayMove(grid, piece, currentTime, lastMoveTime, moveSpeed, algorit
                 break;
             case 2: // Left
                 if (!checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; }
-                else if (Math.random() < 0.1) tryRotate(grid, piece);
+                else if (Math.random() < 0.1) tryRotate(grid, piece); // AI can rotate
                 break;
             case 3: // Right
                 if (!checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; }
-                else if (Math.random() < 0.1) tryRotate(grid, piece);
+                else if (Math.random() < 0.1) tryRotate(grid, piece); // AI can rotate
                 break;
             case 4: // Random
                 const action = Math.random();
                 if (action < 0.33 && !checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; }
                 else if (action < 0.66 && !checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; }
-                else if (action < 0.80) { tryRotate(grid,piece); moved = true; }
-                if (Math.random() < 0.05 && !checkCollision(grid, piece, 1,0)) {piece.row++; moved = true;}
+                else if (action < 0.80) { tryRotate(grid,piece); moved = true; } // AI can rotate
+                if (Math.random() < 0.05 && !checkCollision(grid, piece, 1,0)) {piece.row++; moved = true;} // AI can soft drop
                 break;
         }
         if (moved) return currentTime;
@@ -432,6 +438,7 @@ function autoPlayMove(grid, piece, currentTime, lastMoveTime, moveSpeed, algorit
 }
 
 // --- Smart AI ---
+// ... (existing smart AI functions: getAiStrategy, computeBestPlacement, calculateHeuristic, smartAiMove - no changes for separation)
 function getAiStrategy(algorithmIndex) {
     if (algorithmIndex === 5) return "balanced";
     if (algorithmIndex === 6) return "offensive";
@@ -440,20 +447,18 @@ function getAiStrategy(algorithmIndex) {
 }
 
 function computeBestPlacement(grid, currentPieceState, strategy) {
-    // console.time(`computeBestPlacement Strategy: ${strategy} Piece: ${JSON.stringify(currentPieceState.shape)}`);
     let bestScore = -Infinity;
     let bestChoice = null;
 
-    // Calculate a default choice (current column, 0 rotations, dropped row)
     let tempCurrentPieceForBaseline = {...currentPieceState, shape: currentPieceState.shape.map(r => [...r])};
     let initialSimRow = tempCurrentPieceForBaseline.row;
-    // Ensure valid piece for baseline drop simulation
+
     if(getShapeHeight(tempCurrentPieceForBaseline.shape) > 0){
         while(!checkCollision(grid, {...tempCurrentPieceForBaseline, row: initialSimRow}, 1, 0)) {
             initialSimRow++;
             if (initialSimRow > GRID_ROWS + getShapeHeight(tempCurrentPieceForBaseline.shape) + 5) break;
         }
-    } else { // If piece is invalid, default to top of grid.
+    } else {
         initialSimRow = 0;
     }
     let defaultChoice = { col: currentPieceState.col, rotations: 0, finalRow: initialSimRow };
@@ -492,7 +497,7 @@ function computeBestPlacement(grid, currentPieceState, strategy) {
                 rowArr.forEach((cell, x) => {
                     if (cell) {
                         const boardRow = finalRow + y; const boardCol = simPieceConfig.col + x;
-                        if (boardRow < 0 || boardRow >= GRID_ROWS || boardCol < 0 || boardCol >= GRID_COLS || !tempGrid[boardRow]) {
+                        if (boardRow < 0 || boardRow >= GRID_ROWS || boardCol < 0 || boardCol >= GRID_COLS || !tempGrid[boardRow] || !tempGrid[boardRow][boardCol] === undefined) { // check grid boundary
                             possibleToPlace = false;
                         } else { tempGrid[boardRow][boardCol] = simPieceConfig.color; }
                     }
@@ -508,8 +513,7 @@ function computeBestPlacement(grid, currentPieceState, strategy) {
             }
         }
     }
-    // console.timeEnd(`computeBestPlacement Strategy: ${strategy} Piece: ${JSON.stringify(currentPieceState.shape)}`);
-    return bestChoice || defaultChoice; // Return best found or the default
+    return bestChoice || defaultChoice;
 }
 
 function calculateHeuristic(tempGrid, finalRow, strategy = "balanced") {
@@ -538,7 +542,7 @@ function calculateHeuristic(tempGrid, finalRow, strategy = "balanced") {
         let firstBlockRow = -1;
         for (let r = 0; r < GRID_ROWS; r++) {
             if (simulatedGridForScoring[r][c]) { if (firstBlockRow === -1) firstBlockRow = r; }
-            else { if (firstBlockRow !== -1) totalHoles++; }
+            else { if (firstBlockRow !== -1 && r > firstBlockRow) totalHoles++; } // Hole is below a block
         }
         columnHeights[c] = (firstBlockRow === -1) ? 0 : GRID_ROWS - firstBlockRow;
         aggregateHeight += columnHeights[c];
@@ -546,7 +550,7 @@ function calculateHeuristic(tempGrid, finalRow, strategy = "balanced") {
     holePenalty = totalHoles * W.HOLES;
     if (strategy === "defensive" && totalHoles > 0) holePenalty *= 1.5;
     heightPenalty = aggregateHeight * W.AGGREGATE_HEIGHT;
-    if (strategy === "defensive" && columnHeights.length > 0) heightPenalty += Math.max(...columnHeights) * 10; // Check length
+    if (strategy === "defensive" && columnHeights.length > 0) heightPenalty += Math.max(0, ...columnHeights) * 10;
     for (let c = 0; c < GRID_COLS - 1; c++) { bumpinessPenalty += Math.abs(columnHeights[c] - columnHeights[c + 1]) * W.BUMPINESS; }
 
     score = linesClearedScore - holePenalty - heightPenalty - bumpinessPenalty + (finalRow * W.FINAL_ROW);
@@ -555,18 +559,17 @@ function calculateHeuristic(tempGrid, finalRow, strategy = "balanced") {
 
 function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed, playerFallTime, algorithmIndex) {
     let updatedLastMoveTime = lastMoveTime;
-    let updatedPlayerFallTime = playerFallTime; // By default, AI does not alter fall time
+    let updatedPlayerFallTime = playerFallTime;
     let actionTakenThisTick = false;
 
     if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) {
-        // console.error("SmartAIMove: Invalid piece received.", JSON.stringify(piece));
         return { newLastMoveTime: lastMoveTime, newPlayerFallTime: playerFallTime };
     }
 
     if (currentTime - lastMoveTime > moveSpeed) {
         if (!piece.smartTargetComputed) {
             const strategy = getAiStrategy(algorithmIndex);
-            const best = computeBestPlacement(grid, piece, strategy); // computeBestPlacement now always returns an object
+            const best = computeBestPlacement(grid, piece, strategy);
 
             piece.smartTargetCol = best.col;
             piece.smartTargetRotations = best.rotations;
@@ -574,7 +577,6 @@ function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed, playerFa
         }
 
         if (piece.smartTargetComputed) {
-            // 1. Perform Rotations
             if (piece.smartTargetRotations > 0) {
                 const shapeBeforeRotationAttempt = piece.shape.map(r => [...r]);
                 const rotatedShapeCandidate = rotateSinglePiece({ shape: shapeBeforeRotationAttempt });
@@ -595,67 +597,152 @@ function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed, playerFa
                                 piece.smartTargetRotations--; actionTakenThisTick = true; kicked = true; break;
                             }
                         }
-                        if (!kicked) piece.smartTargetComputed = false;
+                        if (!kicked) piece.smartTargetComputed = false; // Could not rotate or kick
                     }
                 }
             }
-            // 2. Move Horizontally
             else if (piece.col < piece.smartTargetCol) {
                 if (!checkCollision(grid, piece, 0, 1)) { piece.col++; actionTakenThisTick = true; }
-                else piece.smartTargetComputed = false;
+                else piece.smartTargetComputed = false; // Path blocked, recompute
             } else if (piece.col > piece.smartTargetCol) {
                 if (!checkCollision(grid, piece, 0, -1)) { piece.col--; actionTakenThisTick = true; }
-                else piece.smartTargetComputed = false;
+                else piece.smartTargetComputed = false; // Path blocked, recompute
             }
-            // 3. If aligned, AI might choose to accelerate fall (optional)
-            else if (piece.col === piece.smartTargetCol && piece.smartTargetRotations === 0) {
-                // Example: Accelerate fall if aligned.
-                // if (!checkCollision(grid, piece, 1, 0)) {
-                //    updatedPlayerFallTime = currentTime - (fallInterval * 0.5); // Make it fall faster
-                // }
-            }
+            // AI does not use soft/hard drop itself, it plans the final position
         }
 
         if (actionTakenThisTick) {
             updatedLastMoveTime = currentTime;
-        } else if (!piece.smartTargetComputed) { // If target became invalid (e.g. blocked)
-            updatedLastMoveTime = currentTime; // Recompute quickly
+        } else if (!piece.smartTargetComputed && piece.smartTargetRotations === 0 && piece.col === piece.smartTargetCol) {
+            // If target was reached or became invalid but aligned, AI might pause computation briefly
+            updatedLastMoveTime = currentTime;
+        } else if (!piece.smartTargetComputed) {
+            updatedLastMoveTime = currentTime; // Recompute quickly if stuck
         }
     }
     return { newLastMoveTime: updatedLastMoveTime, newPlayerFallTime: updatedPlayerFallTime };
 }
 
+// --- Hard Drop Function ---
+function hardDrop(playerIndex, currentTime) {
+    let grid, piece, currentScoreVal, level, gameOverSetter, gameOverMsgElement;
+    let newPieceRef, lastFallTimeRefName;
+
+    if (playerIndex === 1) {
+        if (gameOver1 || !currentPiece1) return;
+        grid = grid1; piece = currentPiece1; currentScoreVal = score1; level = level1;
+        gameOverSetter = (val) => gameOver1 = val;
+        gameOverMsgElement = gameOverElement1;
+        newPieceRef = (p) => currentPiece1 = p;
+        lastFallTimeRefName = 'lastFallTime1';
+    } else { // Player 2
+        if (gameOver2 || !currentPiece2) return;
+        grid = grid2; piece = currentPiece2; currentScoreVal = score2; level = level2;
+        gameOverSetter = (val) => gameOver2 = val;
+        gameOverMsgElement = gameOverElement2;
+        newPieceRef = (p) => currentPiece2 = p;
+        lastFallTimeRefName = 'lastFallTime2';
+    }
+
+    if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return;
+
+    // Move piece down until collision
+    while (!checkCollision(grid, piece, 1, 0)) {
+        piece.row++;
+    }
+
+    mergeTetrimino(grid, piece);
+    const linesCleared = clearFullRows(grid);
+
+    // Update score
+    let newScore = currentScoreVal + (SCORES[linesCleared] * level);
+    if (playerIndex === 1) score1 = newScore; else score2 = newScore;
+    updateScoreDisplays();
+
+    // Spawn new piece
+    let newPiece = createTetrimino();
+    if (!newPiece || !newPiece.shape || getShapeHeight(newPiece.shape) === 0) {
+        console.error(`P${playerIndex}: createTetrimino returned invalid piece after hard drop!`);
+        gameOverSetter(true);
+        gameOverMsgElement.style.display = 'block';
+        return;
+    }
+    newPiece.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(newPiece.shape) / 2);
+    newPiece.smartTargetComputed = false; // Reset for AI
+
+    newPieceRef(newPiece);
+
+    if (checkCollision(grid, newPiece, 0, 0)) { // Use newPiece for collision check
+        gameOverSetter(true);
+        gameOverMsgElement.style.display = 'block';
+    }
+
+    // Reset fall timer for the new piece for this player
+    if (playerIndex === 1) lastFallTime1 = currentTime;
+    else lastFallTime2 = currentTime;
+}
+
+
 // --- Event Listeners ---
 document.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
+    const currentTimeForAction = performance.now(); // Get time for actions like hard drop
+
     if (key === 'p') {
         paused = !paused;
         if (paused) {
-            pausedElement.textContent = "Paused";
-            pausedElement.style.color = "white";
+            pausedElement.textContent = "PAUSED"; // Consistent with HTML
+            pausedElement.style.color = "yellow"; // Consistent with CSS
             pausedElement.style.display = 'block';
         } else {
             pausedElement.style.display = 'none';
-            lastTime = performance.now(); // Crucial for unpausing
+            lastTime = currentTimeForAction; // Reset lastTime on unpause
         }
         return;
     }
+
+    // AI Mode Toggles
     if (key === 't') {
-        autoAlgorithmIndex = (autoAlgorithmIndex + 1) % AUTO_ALGO_NAMES.length;
-        updateAutoModeDisplay();
-        if (currentPiece1) currentPiece1.smartTargetComputed = false;
-        if (currentPiece2) currentPiece2.smartTargetComputed = false;
+        autoAlgorithmIndex1 = (autoAlgorithmIndex1 + 1) % AUTO_ALGO_NAMES.length;
+        updateAutoModeDisplays();
+        if (currentPiece1) currentPiece1.smartTargetComputed = false; // Reset AI computation
         return;
     }
-    if (paused) return;
+    if (key === 'u') {
+        autoAlgorithmIndex2 = (autoAlgorithmIndex2 + 1) % AUTO_ALGO_NAMES.length;
+        updateAutoModeDisplays();
+        if (currentPiece2) currentPiece2.smartTargetComputed = false; // Reset AI computation
+        return;
+    }
+
+    if (paused) return; // No game actions if paused
+
+    // Hard Drops (only if manual mode)
+    if (key === 'e' && autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1) {
+        hardDrop(1, currentTimeForAction);
+        // keysPressed[key] = true; // Optional: mark as pressed, though 'return' prevents further processing this tick.
+        return; // Consume event
+    }
+    if (key === 'r' && autoAlgorithmIndex2 === 0 && !gameOver2 && currentPiece2) {
+        hardDrop(2, currentTimeForAction);
+        // keysPressed[key] = true;
+        return; // Consume event
+    }
+
+    // For movement keys, just mark them as pressed. Handled in handleInput.
     keysPressed[key] = true;
 
-     if (autoAlgorithmIndex === 0) {
-         if (!gameOver1 && currentPiece1 && event.key === 'ArrowUp') tryRotate(grid1, currentPiece1);
-         if (!gameOver2 && currentPiece2 && key === 'w') tryRotate(grid2, currentPiece2);
+     // Rotations (only if manual mode for the respective player)
+     if (autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1 && event.key === 'ArrowUp') { // Check event.key for ArrowUp specifically
+         tryRotate(grid1, currentPiece1);
+     }
+     if (autoAlgorithmIndex2 === 0 && !gameOver2 && currentPiece2 && key === 'w') {
+         tryRotate(grid2, currentPiece2);
      }
 });
-document.addEventListener('keyup', (event) => { delete keysPressed[event.key.toLowerCase()]; });
+document.addEventListener('keyup', (event) => {
+    delete keysPressed[event.key.toLowerCase()];
+});
 
 function tryRotate(grid, piece) {
     if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return;
@@ -664,24 +751,32 @@ function tryRotate(grid, piece) {
     const rotatedShapeCandidate = rotateSinglePiece({ shape: originalShapeCopy });
 
     if (getShapeWidth(rotatedShapeCandidate) === 0 || getShapeHeight(rotatedShapeCandidate) === 0) return;
+
     let tempPieceConfig = { ...piece, shape: rotatedShapeCandidate, col: originalCol };
 
     if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
-        piece.shape = rotatedShapeCandidate; return;
+        piece.shape = rotatedShapeCandidate;
+        if(piece.smartTargetComputed) piece.smartTargetComputed = false; // AI needs to re-evaluate if player rotates
+        return;
     }
-    const kicks = [-1, 1, -2, 2];
+    // Wall Kicks
+    const kicks = [-1, 1, -2, 2]; // Standard Tetris kicks can be more complex (SRS)
     for (let kick of kicks) {
         tempPieceConfig.col = originalCol + kick;
-         if (getShapeWidth(tempPieceConfig.shape) + tempPieceConfig.col > GRID_COLS || tempPieceConfig.col < 0) continue;
+         // Bound check for kick
+         if (tempPieceConfig.col < 0 || tempPieceConfig.col + getShapeWidth(tempPieceConfig.shape) > GRID_COLS) continue;
+
         if (!checkCollision(grid, tempPieceConfig, 0, 0)) {
-            piece.shape = rotatedShapeCandidate; piece.col = tempPieceConfig.col; return;
+            piece.shape = rotatedShapeCandidate;
+            piece.col = tempPieceConfig.col;
+            if(piece.smartTargetComputed) piece.smartTargetComputed = false;
+            return;
         }
     }
-    piece.col = originalCol;
+    // If no kick worked, do not change piece.col (it's already originalCol)
 }
 
 // --- Start the game ---
-// Ensure DOM is ready before trying to get canvas elements
 document.addEventListener('DOMContentLoaded', (event) => {
     init();
 });

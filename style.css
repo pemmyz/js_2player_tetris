@@ -56,10 +56,17 @@ canvas {
     color: #ccc;
 }
 
-#autoModeDisplay {
+/* MODIFIED: autoModeDisplay is now per player, this style might not be used directly if spans are styled inline or via player-area */
+/* #autoModeDisplay {
+    font-weight: bold;
+    color: #0ff; 
+} */
+/* Styling for new AI mode displays if needed, can be targeted by ID or class */
+#autoModeDisplay1, #autoModeDisplay2 {
     font-weight: bold;
     color: #0ff; /* Cyan */
 }
+
 
 /* Messages */
 .game-over-message,

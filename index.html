@@ -13,7 +13,10 @@
         <!-- Player 1 Area -->
         <div class="player-area">
             <h2>Player 1 / AI 1</h2>
-             <p class="controls">Controls: Arrows (Move), Up (Rotate)</p>
+             <!-- MODIFIED: Added Hard Drop key -->
+             <p class="controls">Controls: Arrows (Move), Up (Rotate), E (Hard Drop)</p>
+             <!-- ADDED: Player 1 AI Mode Display -->
+             <p>AI Mode: <span id="autoModeDisplay1">OFF</span></p>
             <div class="score-display">Score: <span id="score1">0</span></div>
             <canvas id="gameCanvas1" width="300" height="600"></canvas>
              <div id="gameOver1" class="game-over-message">GAME OVER</div>
@@ -22,15 +25,19 @@
         <!-- Middle Info Area -->
         <div class="info-area">
             <p>Press 'P' to Pause</p>
-            <p>Press 'T' to cycle AI Mode</p>
-            <p>Auto Mode: <span id="autoModeDisplay">OFF</span></p>
+            <!-- MODIFIED: AI toggle instructions -->
+            <p>P1 AI: 'T' | P2 AI: 'U'</p>
+            <!-- REMOVED: Central autoModeDisplay -->
              <div id="pausedMessage" class="paused-message">PAUSED</div>
         </div>
 
         <!-- Player 2 Area -->
         <div class="player-area">
             <h2>Player 2 / AI 2</h2>
-             <p class="controls">Controls: WASD (Move), W (Rotate)</p>
+             <!-- MODIFIED: Added Hard Drop key -->
+             <p class="controls">Controls: WASD (Move), W (Rotate), R (Hard Drop)</p>
+             <!-- ADDED: Player 2 AI Mode Display -->
+             <p>AI Mode: <span id="autoModeDisplay2">OFF</span></p>
             <div class="score-display">Score: <span id="score2">0</span></div>
             <canvas id="gameCanvas2" width="300" height="600"></canvas>
              <div id="gameOver2" class="game-over-message">GAME OVER</div>
