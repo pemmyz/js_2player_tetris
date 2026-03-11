@@ -13,10 +13,20 @@ const autoModeElement2 = document.getElementById('autoModeDisplay2');
 const p1GpStatusEl = document.getElementById('p1-gp-status');
 const p2GpStatusEl = document.getElementById('p2-gp-status');
 
-// NEW: Help Menu Elements
+// Help Menu Elements
 const helpScreen = document.getElementById('help-screen');
 const helpTriggerButton = document.getElementById('help-trigger-button');
 const closeHelpButton = document.getElementById('close-help-button');
+
+// Fullscreen/Mobile Elements
+const mobileToggleBtn = document.getElementById('mobile-btn');
+const mobileControls = document.getElementById('mobile-controls');
+const mobileLeftBtn = document.getElementById('mobile-left');
+const mobileRightBtn = document.getElementById('mobile-right');
+const mobileDownBtn = document.getElementById('mobile-down');
+const mobileUpBtn = document.getElementById('mobile-up');
+const mobileDropBtn = document.getElementById('mobile-drop');
+const screenElement = document.getElementById("screen");
 
 
 // --- Game Constants ---
@@ -48,7 +58,7 @@ let moveInterval = 100, fallInterval = 500, aiMoveInterval = 80, smartAiMoveInte
 let keysPressed = {};
 let gameTickCounter = 0;
 
-// NEW: Help menu pause state
+// Help menu pause state
 let wasPausedBeforeHelp = false;
 
 // --- GAMEPAD STATE ---
@@ -153,9 +163,9 @@ function update(currentTime, deltaTime) {
 
 // --- Input Handling ---
 function handleInput(currentTime) {
-    // Player 1 Input (Keyboard OR Gamepad)
+    // Player 1 Input
     if (!gameOver1 && currentPiece1) {
-        if (autoAlgorithmIndex1 === 0) { // Manual P1
+        if (autoAlgorithmIndex1 === 0) {
             if (currentTime - lastMoveTime1 > moveInterval) {
                 let moved = false;
                 const p1Gp = gamepadInputState.p1;
@@ -168,17 +178,17 @@ function handleInput(currentTime) {
                 }
                 if (moved) lastMoveTime1 = currentTime;
             }
-        } else if (autoAlgorithmIndex1 >= 5) { // Smart AI P1
+        } else if (autoAlgorithmIndex1 >= 5) {
             const aiResult = smartAiMove(grid1, currentPiece1, currentTime, lastMoveTime1, smartAiMoveInterval, lastFallTime1, autoAlgorithmIndex1);
             lastMoveTime1 = aiResult.newLastMoveTime;
-        } else { // Simple AI P1
+        } else {
             lastMoveTime1 = autoPlayMove(grid1, currentPiece1, currentTime, lastMoveTime1, aiMoveInterval, autoAlgorithmIndex1);
         }
     }
 
-    // Player 2 Input (Keyboard OR Gamepad)
+    // Player 2 Input
     if (!gameOver2 && currentPiece2) {
-        if (autoAlgorithmIndex2 === 0) { // Manual P2
+        if (autoAlgorithmIndex2 === 0) {
             if (currentTime - lastMoveTime2 > moveInterval) {
                 let moved = false;
                 const p2Gp = gamepadInputState.p2;
@@ -191,22 +201,21 @@ function handleInput(currentTime) {
                 }
                 if (moved) lastMoveTime2 = currentTime;
             }
-        } else if (autoAlgorithmIndex2 >= 5) { // Smart AI P2
+        } else if (autoAlgorithmIndex2 >= 5) {
              const aiResult = smartAiMove(grid2, currentPiece2, currentTime, lastMoveTime2, smartAiMoveInterval, lastFallTime2, autoAlgorithmIndex2);
             lastMoveTime2 = aiResult.newLastMoveTime;
-        } else { // Simple AI P2
+        } else {
             lastMoveTime2 = autoPlayMove(grid2, currentPiece2, currentTime, lastMoveTime2, aiMoveInterval, autoAlgorithmIndex2);
         }
     }
 }
 
-// --- Gamepad Polling and Processing ---
+// --- Gamepad Processing ---
 function pollGamepads(currentTime) {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     if (!pads) return;
 
-    // Part 1: Gamepad Assignment Logic
-    const FACE_BUTTON_INDICES = [0, 1, 2, 3]; // A, B, X, Y
+    const FACE_BUTTON_INDICES = [0, 1, 2, 3];
     for (let i = 0; i < pads.length; i++) {
         const pad = pads[i];
         if (!pad || gamepadAssignmentCooldown[i]) continue;
@@ -216,13 +225,11 @@ function pollGamepads(currentTime) {
         if (faceButtonPressed && !isAssigned) {
             if (playerGamepadAssignments.p1 === null) {
                 playerGamepadAssignments.p1 = i;
-                console.log(`Gamepad ${i} assigned to P1.`);
                 updateGamepadStatusHUD();
                 gamepadAssignmentCooldown[i] = true;
                 setTimeout(() => delete gamepadAssignmentCooldown[i], 1000);
             } else if (playerGamepadAssignments.p2 === null) {
                 playerGamepadAssignments.p2 = i;
-                console.log(`Gamepad ${i} assigned to P2.`);
                 updateGamepadStatusHUD();
                 gamepadAssignmentCooldown[i] = true;
                 setTimeout(() => delete gamepadAssignmentCooldown[i], 1000);
@@ -230,7 +237,6 @@ function pollGamepads(currentTime) {
         }
     }
 
-    // Part 2: Player Action Logic
     if (playerGamepadAssignments.p1 !== null && autoAlgorithmIndex1 === 0 && !gameOver1) {
         const pad1 = pads[playerGamepadAssignments.p1];
         if (pad1) processGamepadForPlayer(1, pad1, currentTime);
@@ -244,11 +250,11 @@ function pollGamepads(currentTime) {
 }
 
 function processGamepadForPlayer(playerNum, pad, currentTime) {
-    if (paused) return; // Don't process game actions if paused
+    if (paused) return;
     const DEADZONE = 0.5;
-    const ROTATE_BUTTON = 0; // 'A' on Xbox, 'X' on PS
-    const HARD_DROP_BUTTON = 2; // 'X' on Xbox, 'Square' on PS
-    const ALT_ROTATE_BUTTON = 12; // D-Pad Up
+    const ROTATE_BUTTON = 0; 
+    const HARD_DROP_BUTTON = 2; 
+    const ALT_ROTATE_BUTTON = 12; 
     const DPAD_DOWN = 13, DPAD_LEFT = 14, DPAD_RIGHT = 15;
 
     const stickX = pad.axes[0];
@@ -269,19 +275,15 @@ function processGamepadForPlayer(playerNum, pad, currentTime) {
     const rotatePressed = pad.buttons[ROTATE_BUTTON]?.pressed || pad.buttons[ALT_ROTATE_BUTTON]?.pressed;
     const hardDropPressed = pad.buttons[HARD_DROP_BUTTON]?.pressed;
 
-    if (rotatePressed && !buttonState[ROTATE_BUTTON] && !buttonState[ALT_ROTATE_BUTTON]) {
-        tryRotate(grid, piece);
-    }
-    if (hardDropPressed && !buttonState[HARD_DROP_BUTTON]) {
-        hardDrop(playerNum, currentTime);
-    }
+    if (rotatePressed && !buttonState[ROTATE_BUTTON] && !buttonState[ALT_ROTATE_BUTTON]) tryRotate(grid, piece);
+    if (hardDropPressed && !buttonState[HARD_DROP_BUTTON]) hardDrop(playerNum, currentTime);
 
     buttonState[ROTATE_BUTTON] = pad.buttons[ROTATE_BUTTON]?.pressed;
     buttonState[ALT_ROTATE_BUTTON] = pad.buttons[ALT_ROTATE_BUTTON]?.pressed;
     buttonState[HARD_DROP_BUTTON] = pad.buttons[HARD_DROP_BUTTON]?.pressed;
 }
 
-// --- (Drawing and most game logic helpers are unchanged) ---
+// --- Drawing and Logic Helpers ---
 function draw() { ctx1.clearRect(0, 0, canvas1.width, canvas1.height); ctx2.clearRect(0, 0, canvas2.width, canvas2.height); drawGridLines(ctx1); drawGridLines(ctx2); drawGridState(ctx1, grid1); drawGridState(ctx2, grid2); if (!gameOver1 && currentPiece1) drawTetrimino(ctx1, currentPiece1); if (!gameOver2 && currentPiece2) drawTetrimino(ctx2, currentPiece2); if (paused) { pausedElement.style.display = 'block'; } else { pausedElement.style.display = 'none'; } }
 function drawGridLines(ctx) { ctx.strokeStyle = '#444'; ctx.lineWidth = 0.5; for (let i = 0; i <= GRID_ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * BLOCK_SIZE); ctx.lineTo(canvas1.width, i * BLOCK_SIZE); ctx.stroke(); } for (let j = 0; j <= GRID_COLS; j++) { ctx.beginPath(); ctx.moveTo(j * BLOCK_SIZE, 0); ctx.lineTo(j * BLOCK_SIZE, canvas1.height); ctx.stroke(); } }
 function drawGridState(ctx, grid) { for (let r = 0; r < GRID_ROWS; r++) { for (let c = 0; c < GRID_COLS; c++) { if (grid[r][c]) drawBlock(ctx, c, r, grid[r][c]); } } }
@@ -291,7 +293,7 @@ function createGrid(rows, cols) { return Array.from({ length: rows }, () => Arra
 function getRandomElement(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function getShapeWidth(shape) { if (!shape || shape.length === 0 || !shape[0]) return 0; return shape[0].length; }
 function getShapeHeight(shape) { if (!shape) return 0; return shape.length; }
-function createTetrimino() { const blueprintShape = getRandomElement(SHAPES); const colorIndex = Math.floor(Math.random() * (COLORS.length - 1)) + 1; const newShape = blueprintShape.map(row => [...row]); if (getShapeWidth(newShape) === 0 || getShapeHeight(newShape) === 0) { console.error("CRITICAL: createTetrimino produced invalid shape"); return null; } return { shape: newShape, color: COLORS[colorIndex], row: 0, col: 0, smartTargetComputed: false, smartTargetCol: null, smartTargetRotations: 0 }; }
+function createTetrimino() { const blueprintShape = getRandomElement(SHAPES); const colorIndex = Math.floor(Math.random() * (COLORS.length - 1)) + 1; const newShape = blueprintShape.map(row => [...row]); if (getShapeWidth(newShape) === 0 || getShapeHeight(newShape) === 0) return null; return { shape: newShape, color: COLORS[colorIndex], row: 0, col: 0, smartTargetComputed: false, smartTargetCol: null, smartTargetRotations: 0 }; }
 function rotateSinglePiece(pieceToRotate) { if (!pieceToRotate || !pieceToRotate.shape || getShapeHeight(pieceToRotate.shape) === 0) return [[1]]; const shape = pieceToRotate.shape; const H = getShapeHeight(shape); const W = getShapeWidth(shape); const N = Math.max(W, H); const tempMatrix = Array.from({ length: N }, () => Array(N).fill(0)); for (let r = 0; r < H; r++) { for (let c = 0; c < W; c++) { if (shape[r][c]) tempMatrix[r][c] = shape[r][c]; } } const rotatedMatrix = Array.from({ length: N }, () => Array(N).fill(0)); for (let r = 0; r < N; r++) { for (let c = 0; c < N; c++) { if (tempMatrix[r][c]) rotatedMatrix[c][N - 1 - r] = tempMatrix[r][c]; } } const finalShape = trimShape(rotatedMatrix); if (getShapeWidth(finalShape) === 0 || getShapeHeight(finalShape) === 0) return trimShape(pieceToRotate.shape.map(r => [...r])); return finalShape; }
 function trimShape(shape) { if (!shape || shape.length === 0) return [[0]]; let minRow = shape.length, maxRow = -1, minCol = Infinity, maxCol = -1; for(let r=0; r<shape.length; r++) { if (!shape[r] || !Array.isArray(shape[r])) return [[0]]; for(let c=0; c<shape[r].length; c++) { if (shape[r][c]) { minRow = Math.min(minRow, r); maxRow = Math.max(maxRow, r); minCol = Math.min(minCol, c); maxCol = Math.max(maxCol, c); } } } if (minRow > maxRow || minCol > maxCol || minCol === Infinity) return [[0]]; const trimmed = []; for (let r = minRow; r <= maxRow; r++) { if(shape[r] && Array.isArray(shape[r])) { trimmed.push(shape[r].slice(minCol, maxCol + 1)); } else return [[0]]; } if (trimmed.length === 0 || getShapeWidth(trimmed) === 0) return [[0]]; return trimmed; }
 function checkCollision(grid, piece, rowOffset, colOffset) { if (!piece || !piece.shape) return true; for (let r = 0; r < piece.shape.length; r++) { if(!piece.shape[r]) continue; for (let c = 0; c < piece.shape[r].length; c++) { if (piece.shape[r][c]) { const newRow = piece.row + r + rowOffset; const newCol = piece.col + c + colOffset; if (newRow < 0 || newRow >= GRID_ROWS || newCol < 0 || newCol >= GRID_COLS) return true; if (grid[newRow] && grid[newRow][newCol] !== 0) return true; } } } return false; }
@@ -301,6 +303,8 @@ function updateScoreDisplays() { scoreElement1.textContent = score1; scoreElemen
 function updateAutoModeDisplays() { if (autoModeElement1) autoModeElement1.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex1]; if (autoModeElement2) autoModeElement2.textContent = AUTO_ALGO_NAMES[autoAlgorithmIndex2]; }
 function hardDrop(playerIndex, currentTime) { let grid, piece, currentScoreVal, level, gameOverSetter, gameOverMsgElement, newPieceRef; if (playerIndex === 1) { if (gameOver1 || !currentPiece1) return; grid = grid1; piece = currentPiece1; currentScoreVal = score1; level = level1; gameOverSetter = (val) => gameOver1 = val; gameOverMsgElement = gameOverElement1; newPieceRef = (p) => currentPiece1 = p; } else { if (gameOver2 || !currentPiece2) return; grid = grid2; piece = currentPiece2; currentScoreVal = score2; level = level2; gameOverSetter = (val) => gameOver2 = val; gameOverMsgElement = gameOverElement2; newPieceRef = (p) => currentPiece2 = p; } if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return; while (!checkCollision(grid, piece, 1, 0)) { piece.row++; } mergeTetrimino(grid, piece); const linesCleared = clearFullRows(grid); let newScore = currentScoreVal + (SCORES[linesCleared] * level); if (playerIndex === 1) score1 = newScore; else score2 = newScore; updateScoreDisplays(); let newPiece = createTetrimino(); if (!newPiece) { gameOverSetter(true); gameOverMsgElement.style.display = 'block'; return; } newPiece.col = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(newPiece.shape) / 2); newPiece.smartTargetComputed = false; newPieceRef(newPiece); if (checkCollision(grid, newPiece, 0, 0)) { gameOverSetter(true); gameOverMsgElement.style.display = 'block'; } if (playerIndex === 1) lastFallTime1 = currentTime; else lastFallTime2 = currentTime; }
 function tryRotate(grid, piece) { if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return; const originalShapeCopy = piece.shape.map(r => [...r]); const originalCol = piece.col; const rotatedShapeCandidate = rotateSinglePiece({ shape: originalShapeCopy }); if (getShapeWidth(rotatedShapeCandidate) === 0 || getShapeHeight(rotatedShapeCandidate) === 0) return; let tempPieceConfig = { ...piece, shape: rotatedShapeCandidate, col: originalCol }; if (!checkCollision(grid, tempPieceConfig, 0, 0)) { piece.shape = rotatedShapeCandidate; if(piece.smartTargetComputed) piece.smartTargetComputed = false; return; } const kicks = [-1, 1, -2, 2]; for (let kick of kicks) { tempPieceConfig.col = originalCol + kick; if (tempPieceConfig.col < 0 || tempPieceConfig.col + getShapeWidth(tempPieceConfig.shape) > GRID_COLS) continue; if (!checkCollision(grid, tempPieceConfig, 0, 0)) { piece.shape = rotatedShapeCandidate; piece.col = tempPieceConfig.col; if(piece.smartTargetComputed) piece.smartTargetComputed = false; return; } } }
+
+// AI Engine (Abbreviated logically for length)
 function autoPlayMove(grid, piece, currentTime, lastMoveTime, moveSpeed, algorithmIndex) { if (!piece || !piece.shape || getShapeHeight(piece.shape) === 0) return lastMoveTime; if (currentTime - lastMoveTime > moveSpeed) { let moved = false; switch (algorithmIndex) { case 1: const targetCol = Math.floor(GRID_COLS / 2) - Math.floor(getShapeWidth(piece.shape) / 2); if (piece.col < targetCol && !checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; } else if (piece.col > targetCol && !checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; } break; case 2: if (!checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; } else if (Math.random() < 0.1) tryRotate(grid, piece); break; case 3: if (!checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; } else if (Math.random() < 0.1) tryRotate(grid, piece); break; case 4: const action = Math.random(); if (action < 0.33 && !checkCollision(grid, piece, 0, -1)) { piece.col--; moved = true; } else if (action < 0.66 && !checkCollision(grid, piece, 0, 1)) { piece.col++; moved = true; } else if (action < 0.80) { tryRotate(grid,piece); moved = true; } if (Math.random() < 0.05 && !checkCollision(grid, piece, 1,0)) {piece.row++; moved = true;} break; } if (moved) return currentTime; } return lastMoveTime; }
 function getAiStrategy(algorithmIndex) { if (algorithmIndex === 5) return "balanced"; if (algorithmIndex === 6) return "offensive"; if (algorithmIndex === 7) return "defensive"; return "balanced"; }
 function computeBestPlacement(grid, currentPieceState, strategy) { let bestScore = -Infinity; let bestChoice = null; let tempCurrentPieceForBaseline = {...currentPieceState, shape: currentPieceState.shape.map(r => [...r])}; let initialSimRow = tempCurrentPieceForBaseline.row; if(getShapeHeight(tempCurrentPieceForBaseline.shape) > 0){ while(!checkCollision(grid, {...tempCurrentPieceForBaseline, row: initialSimRow}, 1, 0)) { initialSimRow++; if (initialSimRow > GRID_ROWS + 5) break; } } else { initialSimRow = 0; } let defaultChoice = { col: currentPieceState.col, rotations: 0, finalRow: initialSimRow }; const originalPieceShapeBlueprint = currentPieceState.shape.map(row => [...row]); let shapeForCurrentRotationCycle = originalPieceShapeBlueprint.map(row => [...row]); for (let r = 0; r < 4; r++) { if (r > 0) { shapeForCurrentRotationCycle = rotateSinglePiece({ shape: shapeForCurrentRotationCycle }); } if (getShapeWidth(shapeForCurrentRotationCycle) === 0 || getShapeHeight(shapeForCurrentRotationCycle) === 0) continue; const pieceWidth = getShapeWidth(shapeForCurrentRotationCycle); for (let c = 0; c <= GRID_COLS - pieceWidth; c++) { const simPieceConfig = { shape: shapeForCurrentRotationCycle, color: currentPieceState.color, row: 0, col: c }; if(getShapeHeight(simPieceConfig.shape) === 0) continue; let tempSimRow = 0; while (!checkCollision(grid, { ...simPieceConfig, row: tempSimRow }, 1, 0)) { tempSimRow++; if (tempSimRow > GRID_ROWS + 5) break; } let finalRow = tempSimRow; let tempGrid = grid.map(gRow => [...gRow]); let possibleToPlace = true; simPieceConfig.shape.forEach((rowArr, y) => { if(!rowArr) {possibleToPlace = false; return;} rowArr.forEach((cell, x) => { if (cell) { const boardRow = finalRow + y; const boardCol = simPieceConfig.col + x; if (boardRow < 0 || boardRow >= GRID_ROWS || boardCol < 0 || boardCol >= GRID_COLS || !tempGrid[boardRow] || tempGrid[boardRow][boardCol] === undefined) { possibleToPlace = false; } else { tempGrid[boardRow][boardCol] = simPieceConfig.color; } } }); if(!possibleToPlace) return; }); if (!possibleToPlace) continue; let currentScore = calculateHeuristic(tempGrid, finalRow, strategy); if (currentScore > bestScore) { bestScore = currentScore; bestChoice = { col: simPieceConfig.col, rotations: r, finalRow: finalRow }; } } } return bestChoice || defaultChoice; }
@@ -311,11 +315,7 @@ function smartAiMove(grid, piece, currentTime, lastMoveTime, moveSpeed, playerFa
 document.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
     
-    // Help Menu Toggle
-    if (key === 'h') {
-        helpScreen.classList.contains('hidden') ? showHelp() : hideHelp();
-        return;
-    }
+    if (key === 'h') { helpScreen.classList.contains('hidden') ? showHelp() : hideHelp(); return; }
 
     if (key === 'p') {
         paused = !paused;
@@ -324,7 +324,6 @@ document.addEventListener('keydown', (event) => {
         return;
     }
     
-    // Block other controls if help is open
     if (!helpScreen.classList.contains('hidden')) return;
 
     if (key === 't') { autoAlgorithmIndex1 = (autoAlgorithmIndex1 + 1) % AUTO_ALGO_NAMES.length; updateAutoModeDisplays(); if (currentPiece1) currentPiece1.smartTargetComputed = false; return; }
@@ -338,8 +337,8 @@ document.addEventListener('keydown', (event) => {
     
     keysPressed[key] = true;
 
-    if (autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1 && event.key === 'ArrowUp') { tryRotate(grid1, currentPiece1); }
-    if (autoAlgorithmIndex2 === 0 && !gameOver2 && currentPiece2 && key === 'w') { tryRotate(grid2, currentPiece2); }
+    if (autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1 && event.key === 'ArrowUp') tryRotate(grid1, currentPiece1); 
+    if (autoAlgorithmIndex2 === 0 && !gameOver2 && currentPiece2 && key === 'w') tryRotate(grid2, currentPiece2); 
 });
 document.addEventListener('keyup', (event) => { delete keysPressed[event.key.toLowerCase()]; });
 
@@ -355,26 +354,16 @@ function showHelp() {
 function hideHelp() {
     paused = wasPausedBeforeHelp;
     helpScreen.classList.add('hidden');
-    if (!paused) {
-        pausedElement.style.display = 'none';
-        lastTime = performance.now(); // Prevents jump in game time after unpausing
-    } else {
-        pausedElement.textContent = "PAUSED"; // Restore original pause message
-    }
+    if (!paused) { pausedElement.style.display = 'none'; lastTime = performance.now(); } 
+    else { pausedElement.textContent = "PAUSED"; }
 }
 
-// Help Menu Event Listeners
 helpTriggerButton.addEventListener('click', showHelp);
 closeHelpButton.addEventListener('click', hideHelp);
 
-
 // --- Gamepad Listeners ---
-window.addEventListener("gamepadconnected", (e) => {
-    console.log(`Gamepad connected: ${e.gamepad.id}.`);
-    updateGamepadStatusHUD();
-});
+window.addEventListener("gamepadconnected", (e) => { updateGamepadStatusHUD(); });
 window.addEventListener("gamepaddisconnected", (e) => {
-    console.log(`Gamepad disconnected: ${e.gamepad.id}.`);
     if (playerGamepadAssignments.p1 === e.gamepad.index) playerGamepadAssignments.p1 = null;
     if (playerGamepadAssignments.p2 === e.gamepad.index) playerGamepadAssignments.p2 = null;
     updateGamepadStatusHUD();
@@ -384,6 +373,102 @@ function updateGamepadStatusHUD() {
     p1GpStatusEl.textContent = playerGamepadAssignments.p1 !== null ? `GP: Connected (ID ${playerGamepadAssignments.p1})` : 'GP: N/A';
     p2GpStatusEl.textContent = playerGamepadAssignments.p2 !== null ? `GP: Connected (ID ${playerGamepadAssignments.p2})` : 'GP: N/A';
 }
+
+
+// ==========================================
+// --- FULLSCREEN & MOBILE CONTROLS LOGIC ---
+// ==========================================
+
+function scaleGame() {
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+    if (isFullscreen) {
+        const baseWidth = 820;  // Matches CSS Screen Width
+        const baseHeight = 840; // Matches CSS Screen Height
+        
+        const scale = Math.min(
+            window.innerWidth / baseWidth,
+            window.innerHeight / baseHeight
+        );
+        
+        screenElement.style.transform = `scale(${scale})`;
+        document.body.classList.add('mobile-mode'); 
+    } else {
+        screenElement.style.transform = 'none'; 
+        document.body.classList.remove('mobile-mode');
+    }
+}
+
+function goFull() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+// Window resizing triggers scaling adjustment 
+window.addEventListener("resize", scaleGame);
+window.addEventListener("fullscreenchange", scaleGame);
+window.addEventListener("webkitfullscreenchange", scaleGame);
+
+// Set initial state
+scaleGame();
+
+mobileToggleBtn.addEventListener('click', goFull);
+
+function setupMobileControls() {
+    if (!mobileControls) return;
+
+    // Simulate hold actions (Movements)
+    const addHoldListener = (element, key) => {
+        const pressKey = (e) => {
+            if(e.cancelable) e.preventDefault(); 
+            keysPressed[key] = true;
+        };
+        const releaseKey = (e) => {
+            if(e.cancelable) e.preventDefault();
+            delete keysPressed[key];
+        };
+
+        element.addEventListener('touchstart', pressKey, { passive: false });
+        element.addEventListener('touchend', releaseKey, { passive: false });
+        element.addEventListener('touchcancel', releaseKey, { passive: false });
+        
+        element.addEventListener('mousedown', pressKey);
+        element.addEventListener('mouseup', releaseKey);
+        element.addEventListener('mouseleave', (e) => { if (e.buttons === 1) { releaseKey(e); } });
+    };
+
+    // Simulate single-tap actions (Rotate & Drop)
+    const addTapListener = (element, actionFn) => {
+        const tap = (e) => {
+            if(e.cancelable) e.preventDefault();
+            if(!paused) actionFn();
+        }
+        element.addEventListener('touchstart', tap, { passive: false });
+        element.addEventListener('mousedown', tap);
+    };
+
+    // Map Buttons to Player 1 keys/logic 
+    addHoldListener(mobileLeftBtn, 'arrowleft');
+    addHoldListener(mobileRightBtn, 'arrowright');
+    addHoldListener(mobileDownBtn, 'arrowdown');
+
+    // Tap actions directly call the appropriate function 
+    addTapListener(mobileUpBtn, () => {
+        if (autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1) {
+            tryRotate(grid1, currentPiece1);
+        }
+    });
+
+    addTapListener(mobileDropBtn, () => {
+        if (autoAlgorithmIndex1 === 0 && !gameOver1 && currentPiece1) {
+            hardDrop(1, performance.now());
+        }
+    });
+}
+
+// Initialize Mobile inputs
+setupMobileControls();
 
 // --- Start the game ---
 document.addEventListener('DOMContentLoaded', init);

@@ -1,24 +1,55 @@
+/* ROOT & BODY SETUP */
 body {
     font-family: sans-serif;
     background-color: #222;
     color: #eee;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100vw;
+    overflow: auto; 
+}
+
+/* --- MOBILE MODE LOCK --- */
+body.mobile-mode {
+    overflow: hidden; 
+    touch-action: none; 
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background: #000;
+}
+
+/* --- THE SCREEN (Fixed Internal Resolution for Scaling) --- */
+#screen {
+    width: 820px;  /* Tighter Width */
+    height: 840px; /* Tighter Height */
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: 0;
-    padding: 20px;
+    transform-origin: center center; 
+    flex-shrink: 0;
 }
 
 h1, h2 {
     text-align: center;
-    color: #0f0; /* Greenish title */
+    color: #0f0; 
+    margin: 5px 0; /* Reduced spacing */
 }
+
+h1 { font-size: 1.8em; margin-top: 10px; }
+h2 { font-size: 1.3em; }
+p { margin: 3px 0; } /* Reduced empty space */
 
 .game-container {
     display: flex;
     justify-content: center;
-    gap: 30px; /* Space between player areas and info */
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 15px; /* Tighter gap */
 }
 
 .player-area {
@@ -27,89 +58,68 @@ h1, h2 {
     align-items: center;
 }
 
-.controls {
-    font-size: 0.8em;
-    color: #aaa;
-    margin-bottom: 5px;
-    height: 1em; /* Reserve space */
-}
-
-.gamepad-status {
-    font-size: 0.8em;
-    color: #0ff; /* Cyan color */
-    margin-bottom: 10px;
-    font-weight: bold;
-    height: 1em; /* Reserve space */
-}
-
-.score-display {
-    font-size: 1.2em;
-    margin-bottom: 10px;
-    color: #ff0; /* Yellow score */
-}
+.controls { font-size: 0.75em; color: #aaa; }
+.gamepad-status { font-size: 0.8em; color: #0ff; font-weight: bold; }
+.score-display { font-size: 1.1em; margin-bottom: 5px; color: #ff0; font-weight: bold; }
 
 canvas {
     border: 3px solid #555;
     background-color: #000;
-    display: block; /* Prevents extra space below canvas */
+    display: block; 
 }
 
 .info-area {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center; /* Center text vertically */
+    justify-content: center; 
     text-align: center;
-    padding: 20px;
-    min-width: 150px;
+    padding: 5px;
+    width: 140px; /* Tighter width */
     color: #ccc;
+    font-size: 0.9em;
 }
 
 .gp-instructions {
-    font-size: 0.9em;
+    font-size: 0.85em;
     color: #0ff;
-    margin-top: 20px;
+    margin-top: 15px;
     border-top: 1px solid #555;
-    padding-top: 20px;
+    padding-top: 15px;
 }
 
-#autoModeDisplay1, #autoModeDisplay2 {
-    font-weight: bold;
-    color: #0ff; /* Cyan */
-}
+#autoModeDisplay1, #autoModeDisplay2 { font-weight: bold; color: #0ff; }
 
 /* Messages */
 .game-over-message,
 .paused-message {
-    position: absolute; /* Position relative to nearest positioned ancestor or body */
-    display: none; /* Hidden by default */
+    position: absolute; 
+    display: none; 
     font-size: 2em;
     font-weight: bold;
     color: red;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, 0.85);
     padding: 20px;
     border-radius: 10px;
     text-align: center;
+    z-index: 100;
 }
 
 #pausedMessage { color: yellow; }
-.game-over-message.visible, .paused-message.visible { display: block; }
 
-
-/* NEW: Bottom Bar Styles */
+/* Bottom Bar Styles */
 .bottom-bar {
     width: 100%;
-    max-width: 1000px; /* Match approx width of game area */
     display: flex;
-    justify-content: flex-start;
-    padding: 20px 0;
+    justify-content: center;
+    padding: 15px 0;
 }
 
 #help-trigger-button, #close-help-button {
     background-color: #005f73;
     color: #94d2bd;
     border: 2px solid #94d2bd;
-    padding: 10px 20px;
+    padding: 8px 16px;
     font-family: sans-serif;
     font-size: 1em;
     cursor: pointer;
@@ -117,81 +127,81 @@ canvas {
     transition: background-color 0.2s, color 0.2s;
 }
 
-#help-trigger-button:hover, #close-help-button:hover {
-    background-color: #94d2bd;
-    color: #001219;
-}
+#help-trigger-button:hover, #close-help-button:hover { background-color: #94d2bd; color: #001219; }
 
-
-/* NEW: Help Screen Styles */
+/* Help Screen Styles */
 .hidden { display: none !important; }
 
 #help-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.85); z-index: 1000;
+    display: flex; justify-content: center; align-items: center;
 }
 
 .help-content {
-    background-color: #1a1a1a;
-    border: 3px solid #0f0;
-    border-radius: 15px;
-    padding: 20px 40px;
-    max-width: 800px;
-    width: 90%;
-    text-align: center;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-around;
-    gap: 20px;
+    background-color: #1a1a1a; border: 3px solid #0f0; border-radius: 15px;
+    padding: 15px 30px; max-width: 800px; width: 90%;
+    text-align: center; display: flex; flex-wrap: wrap; justify-content: space-around; gap: 15px;
 }
 
-.help-content h2 {
-    width: 100%;
-    font-size: 2.5em;
-    margin-bottom: 20px;
+.help-content h2 { width: 100%; font-size: 2em; margin-bottom: 10px; }
+.controls-section { background-color: #2b2b2b; padding: 10px; border-radius: 8px; text-align: left; min-width: 200px; }
+.controls-section h3 { color: #ff0; margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; }
+.controls-section p { margin: 5px 0; font-size: 0.9em; }
+.controls-section strong { color: #eee; display: inline-block; width: 130px; }
+.general-controls { width: 100%; margin-top: 5px; }
+#close-help-button { margin-top: 15px; width: 100%; font-size: 1.1em; }
+
+/* --- TOGGLE BUTTON --- */
+#mobile-btn {
+    position: fixed;
+    top: 10px; left: 10px;
+    z-index: 2000;
+    background: #333;
+    color: white;
+    border: 2px solid white;
+    font-size: 12px;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+body.mobile-mode #mobile-btn { display: none; }
+
+/* --- MOBILE CONTROLS OVERLAY --- */
+#mobile-controls {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; 
+    z-index: 3000;
+    display: none; 
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
-.controls-section {
-    background-color: #2b2b2b;
-    padding: 15px;
-    border-radius: 8px;
-    text-align: left;
-    min-width: 220px;
+body.mobile-mode #mobile-controls { display: flex; }
+
+.mobile-control-btn {
+    pointer-events: auto; 
+    width: 70px; height: 70px;
+    background: rgba(255,255,255,0.15);
+    border: 3px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    color: white;
+    font-size: 28px;
+    display: flex; justify-content: center; align-items: center;
+    user-select: none;
+    backdrop-filter: blur(4px);
+    transition: transform 0.1s, background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: monospace;
 }
 
-.controls-section h3 {
-    color: #ff0;
-    margin-top: 0;
-    border-bottom: 1px solid #555;
-    padding-bottom: 5px;
+.mobile-control-btn:active { 
+    background: rgba(255,255,255,0.4); 
+    transform: scale(0.95);
 }
 
-.controls-section p {
-    margin: 8px 0;
-    line-height: 1.4;
-}
-
-.controls-section strong {
-    color: #eee;
-    display: inline-block;
-    width: 140px; /* Align control descriptions */
-}
-
-.general-controls {
-    width: 100%;
-    margin-top: 10px;
-}
-
-#close-help-button {
-    margin-top: 30px;
-    width: 100%;
-    font-size: 1.2em;
-}
+#mobile-dpad { display: flex; gap: 10px; margin-left: 10px; margin-bottom: 10px; align-items: flex-end;}
+#mobile-action { display: flex; gap: 15px; margin-right: 10px; margin-bottom: 10px; align-items: flex-end;}
