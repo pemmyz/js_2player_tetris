@@ -1,21 +1,20 @@
 /* ROOT & BODY SETUP */
 body {
     font-family: sans-serif;
-    background-color: #222;
+    background-color: #111;
     color: #eee;
     margin: 0;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
+    height: 100vh;
     width: 100vw;
-    overflow: auto; 
+    overflow: hidden; /* Prevent scrollbars */
 }
 
 /* --- MOBILE MODE LOCK --- */
 body.mobile-mode {
-    overflow: hidden; 
-    touch-action: none; 
     position: fixed;
     width: 100%;
     height: 100%;
@@ -24,112 +23,157 @@ body.mobile-mode {
     background: #000;
 }
 
-/* --- THE SCREEN (Fixed Internal Resolution for Scaling) --- */
+/* --- THE SCREEN --- */
 #screen {
-    width: 820px;  /* Tighter Width */
-    height: 840px; /* Tighter Height */
-    position: relative;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
+    background-color: #222;
+}
+
+/* --- TOP UI (One Line) --- */
+#top-ui {
+    display: flex;
+    justify-content: space-evenly;
     align-items: center;
-    transform-origin: center center; 
+    background: #0d0d0d;
+    padding: 0 10px;
+    height: 50px;
     flex-shrink: 0;
+    border-bottom: 3px solid #444;
 }
 
-h1, h2 {
-    text-align: center;
+#top-ui h1 {
+    font-size: 1.5em;
+    margin: 0;
     color: #0f0; 
-    margin: 5px 0; /* Reduced spacing */
+    white-space: nowrap;
 }
 
-h1 { font-size: 1.8em; margin-top: 10px; }
-h2 { font-size: 1.3em; }
-p { margin: 3px 0; } /* Reduced empty space */
+.player-stats {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: #1a1a1a;
+    padding: 6px 15px;
+    border-radius: 5px;
+    border: 1px solid #333;
+    white-space: nowrap;
+}
 
+.p-title { font-size: 1.1em; color: #ccc; }
+#autoModeDisplay1, #autoModeDisplay2 { font-weight: bold; color: #0ff; }
+.score-display { font-size: 1.1em; color: #ff0; font-weight: bold; }
+.gamepad-status { font-size: 0.9em; color: #0ff; }
+
+/* --- GAME CONTAINER --- */
 .game-container {
     display: flex;
     justify-content: center;
-    gap: 15px; /* Tighter gap */
+    align-items: flex-end; /* Push canvases to the very bottom */
+    flex-grow: 1; /* Stretch vertically into remaining space */
+    gap: 30px;
+    padding: 0;
+    overflow: hidden;
 }
 
 .player-area {
+    height: 100%;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    justify-content: flex-end; /* Ensure canvases touch the bottom border strictly */
+    position: relative;
+    flex-shrink: 0;
 }
-
-.controls { font-size: 0.75em; color: #aaa; }
-.gamepad-status { font-size: 0.8em; color: #0ff; font-weight: bold; }
-.score-display { font-size: 1.1em; margin-bottom: 5px; color: #ff0; font-weight: bold; }
 
 canvas {
-    border: 3px solid #555;
+    height: 100%;
+    aspect-ratio: 1 / 2; /* Maintains strict Tetris proportions while auto-sizing width */
+    border: 4px solid #555;
+    border-bottom: none; /* Touches the bottom completely */
     background-color: #000;
     display: block; 
+    box-sizing: border-box;
+    image-rendering: pixelated; /* Keeps it sharp when heavily scaled */
 }
 
+/* --- MIDDLE INFO AREA --- */
 .info-area {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center; 
     text-align: center;
-    padding: 5px;
-    width: 140px; /* Tighter width */
+    width: 200px; 
+    height: 100%;
     color: #ccc;
-    font-size: 0.9em;
+    flex-shrink: 0;
 }
+
+#help-trigger-button {
+    background-color: #005f73;
+    color: #94d2bd;
+    border: 2px solid #94d2bd;
+    padding: 12px 20px;
+    font-family: sans-serif;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s, color 0.2s;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+#help-trigger-button:hover { 
+    background-color: #94d2bd; 
+    color: #001219; 
+}
+
+.info-text p { margin: 8px 0; font-size: 0.95em; }
+.controls { font-size: 0.85em; color: #aaa; }
 
 .gp-instructions {
     font-size: 0.85em;
     color: #0ff;
-    margin-top: 15px;
+    margin-top: 20px;
     border-top: 1px solid #555;
     padding-top: 15px;
 }
 
-#autoModeDisplay1, #autoModeDisplay2 { font-weight: bold; color: #0ff; }
-
-/* Messages */
-.game-over-message,
-.paused-message {
+/* --- MESSAGES --- */
+.game-over-message {
     position: absolute; 
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none; 
+    font-size: 2.5em;
+    font-weight: bold;
+    color: red;
+    background-color: rgba(0, 0, 0, 0.9);
+    padding: 20px 30px;
+    border: 3px solid red;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 100;
+    white-space: nowrap;
+}
+
+.paused-message {
     display: none; 
     font-size: 2em;
     font-weight: bold;
-    color: red;
+    color: yellow;
     background-color: rgba(0, 0, 0, 0.85);
     padding: 20px;
     border-radius: 10px;
     text-align: center;
-    z-index: 100;
+    margin-top: 20px;
 }
 
-#pausedMessage { color: yellow; }
-
-/* Bottom Bar Styles */
-.bottom-bar {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 15px 0;
-}
-
-#help-trigger-button, #close-help-button {
-    background-color: #005f73;
-    color: #94d2bd;
-    border: 2px solid #94d2bd;
-    padding: 8px 16px;
-    font-family: sans-serif;
-    font-size: 1em;
-    cursor: pointer;
-    border-radius: 5px;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-#help-trigger-button:hover, #close-help-button:hover { background-color: #94d2bd; color: #001219; }
-
-/* Help Screen Styles */
+/* --- HELP SCREEN --- */
 .hidden { display: none !important; }
 
 #help-screen {
@@ -144,13 +188,19 @@ canvas {
     text-align: center; display: flex; flex-wrap: wrap; justify-content: space-around; gap: 15px;
 }
 
-.help-content h2 { width: 100%; font-size: 2em; margin-bottom: 10px; }
+.help-content h2 { width: 100%; font-size: 2em; margin-bottom: 10px; color: #0f0;}
 .controls-section { background-color: #2b2b2b; padding: 10px; border-radius: 8px; text-align: left; min-width: 200px; }
 .controls-section h3 { color: #ff0; margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; }
 .controls-section p { margin: 5px 0; font-size: 0.9em; }
 .controls-section strong { color: #eee; display: inline-block; width: 130px; }
 .general-controls { width: 100%; margin-top: 5px; }
-#close-help-button { margin-top: 15px; width: 100%; font-size: 1.1em; }
+
+#close-help-button { 
+    margin-top: 15px; width: 100%; font-size: 1.1em;
+    background-color: #005f73; color: #94d2bd;
+    border: 2px solid #94d2bd; padding: 10px; border-radius: 5px; cursor: pointer;
+}
+#close-help-button:hover { background-color: #94d2bd; color: #001219; }
 
 /* --- TOGGLE BUTTON --- */
 #mobile-btn {

@@ -84,7 +84,7 @@ function init() {
 
     score1 = 0; score2 = 0; level1 = 1; level2 = 1;
     gameOver1 = false; gameOver2 = false; paused = false;
-    autoAlgorithmIndex1 = 0; autoAlgorithmIndex2 = 0;
+    autoAlgorithmIndex1 = 5; autoAlgorithmIndex2 = 5; // Starts autobot demo with 'Smart (Balanced)'
     gameTickCounter = 0;
     lastMoveTime1 = 0; lastMoveTime2 = 0; lastFallTime1 = 0; lastFallTime2 = 0;
     keysPressed = {};
@@ -95,7 +95,7 @@ function init() {
     gameOverElement1.style.display = 'none';
     gameOverElement2.style.display = 'none';
     pausedElement.style.display = 'none';
-    pausedElement.style.color = 'white';
+    pausedElement.style.color = 'yellow';
 
     requestAnimationFrame(gameLoop);
 }
@@ -382,16 +382,10 @@ function updateGamepadStatusHUD() {
 function scaleGame() {
     const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
 
+    // CSS natively stretches and centers elements to 100vh vertically now.
+    // We only need to toggle the mobile-mode class on and off.
     if (isFullscreen) {
-        const baseWidth = 820;  // Matches CSS Screen Width
-        const baseHeight = 840; // Matches CSS Screen Height
-        
-        const scale = Math.min(
-            window.innerWidth / baseWidth,
-            window.innerHeight / baseHeight
-        );
-        
-        screenElement.style.transform = `scale(${scale})`;
+        screenElement.style.transform = 'none';
         document.body.classList.add('mobile-mode'); 
     } else {
         screenElement.style.transform = 'none'; 

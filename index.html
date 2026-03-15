@@ -11,45 +11,50 @@
     <!-- TOGGLE BUTTON -->
     <button id="mobile-btn">📱 Fullscreen / Mobile Controls</button>
 
-    <!-- GAME SCREEN WRAPPER (Fixed resolution for scaling) -->
+    <!-- GAME SCREEN WRAPPER -->
     <div id="screen">
-        <h1>JS 2-Player Tetris</h1>
+        
+        <!-- TOP UI (One Line Header) -->
+        <div id="top-ui">
+            <h1>JS 2-Player Tetris</h1>
+            <div class="player-stats">
+                <span class="p-title">P1 AI: <span id="autoModeDisplay1">OFF</span></span> |
+                <span class="score-display">Score: <span id="score1">0</span></span> |
+                <span class="gamepad-status" id="p1-gp-status">GP: N/A</span>
+            </div>
+            <div class="player-stats">
+                <span class="p-title">P2 AI: <span id="autoModeDisplay2">OFF</span></span> |
+                <span class="score-display">Score: <span id="score2">0</span></span> |
+                <span class="gamepad-status" id="p2-gp-status">GP: N/A</span>
+            </div>
+        </div>
 
         <div class="game-container">
             <!-- Player 1 Area -->
             <div class="player-area">
-                <h2>Player 1 / AI 1</h2>
-                <p class="controls">KB: Arrows, Up (Rotate), E (Drop)</p>
-                <p class="gamepad-status" id="p1-gp-status">GP: N/A</p>
-                <p>AI: <span id="autoModeDisplay1">OFF</span></p>
-                <div class="score-display">Score: <span id="score1">0</span></div>
                 <canvas id="gameCanvas1" width="300" height="600"></canvas>
                 <div id="gameOver1" class="game-over-message">GAME OVER</div>
             </div>
 
             <!-- Middle Info Area -->
             <div class="info-area">
-                <p>Pause: 'P'</p>
-                <p>P1 AI: 'T' | P2 AI: 'U'</p>
-                <p class="gp-instructions">Press any face button (A,B,X,Y) on a controller to assign it.</p>
+                <button id="help-trigger-button">Press 'H' for Help</button>
+                
+                <div class="info-text">
+                    <p>Pause: 'P'</p>
+                    <p>P1 AI: 'T' | P2 AI: 'U'</p>
+                    <p class="controls">P1 KB: Arrows, E</p>
+                    <p class="controls">P2 KB: WASD, R</p>
+                    <p class="gp-instructions">Press any face button (A,B,X,Y) on a controller to assign.</p>
+                </div>
                 <div id="pausedMessage" class="paused-message">PAUSED</div>
             </div>
 
             <!-- Player 2 Area -->
             <div class="player-area">
-                <h2>Player 2 / AI 2</h2>
-                <p class="controls">KB: WASD, W (Rotate), R (Drop)</p>
-                <p class="gamepad-status" id="p2-gp-status">GP: N/A</p>
-                <p>AI: <span id="autoModeDisplay2">OFF</span></p>
-                <div class="score-display">Score: <span id="score2">0</span></div>
                 <canvas id="gameCanvas2" width="300" height="600"></canvas>
                 <div id="gameOver2" class="game-over-message">GAME OVER</div>
             </div>
-        </div>
-
-        <!-- Bottom Bar for Help Button -->
-        <div class="bottom-bar">
-            <button id="help-trigger-button">Press 'H' for Help</button>
         </div>
     </div>
 
